@@ -155,10 +155,18 @@ export const fetchTMDB = async (endpoint, params = {}) => {
     // If TMDB is not configured, simulate a network request and return mock data
     await new Promise(resolve => setTimeout(resolve, 500))
 
-    if (endpoint.includes('/movie/popular')) {
-      return { results: MOCK_MOVIES }
-    } else if (endpoint.includes('/tv/popular')) {
-      return { results: MOCK_TV }
+    if (endpoint.includes('/trending') || endpoint.includes('/popular') || endpoint.includes('/top_rated')) {
+      if (endpoint.includes('/movie/')) {
+        return { results: MOCK_MOVIES.map(m => ({ ...m, media_type: 'movie' })) }
+      } else if (endpoint.includes('/tv/')) {
+        return { results: MOCK_TV.map(t => ({ ...t, media_type: 'tv' })) }
+      }
+      return {
+        results: [
+          ...MOCK_MOVIES.map(m => ({ ...m, media_type: 'movie' })),
+          ...MOCK_TV.map(t => ({ ...t, media_type: 'tv' }))
+        ]
+      }
     } else if (endpoint.includes('/search/multi') || endpoint.includes('/search/movie') || endpoint.includes('/search/tv')) {
       const query = (params.query || '').toLowerCase()
       if (!query) return { results: [...MOCK_MOVIES, ...MOCK_TV] }

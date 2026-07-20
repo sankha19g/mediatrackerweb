@@ -6,6 +6,19 @@ import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems } from
 
 const LANGUAGE_NAMES = {
   'en': 'English',
+  'hi': 'Hindi',
+  'ta': 'Tamil',
+  'te': 'Telugu',
+  'ml': 'Malayalam',
+  'kn': 'Kannada',
+  'mr': 'Marathi',
+  'bn': 'Bengali',
+  'pa': 'Punjabi',
+  'gu': 'Gujarati',
+  'ur': 'Urdu',
+  'or': 'Odia',
+  'as': 'Assamese',
+  'bho': 'Bhojpuri',
   'ja': 'Japanese',
   'ko': 'Korean',
   'es': 'Spanish',
@@ -15,7 +28,6 @@ const LANGUAGE_NAMES = {
   'zh': 'Chinese',
   'cn': 'Chinese',
   'ru': 'Russian',
-  'hi': 'Hindi',
   'pt': 'Portuguese',
   'nl': 'Dutch',
   'sv': 'Swedish',
@@ -58,6 +70,31 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   useEffect(() => {
     localStorage.setItem('cinelog_status_filter', statusFilter)
   }, [statusFilter])
+
+  // Auto-fill missing original_language for existing items with tmdb_id
+  useEffect(() => {
+    const itemsMissingLang = items.filter(item => item.tmdb_id && (!item.original_language || item.original_language === ''))
+    if (itemsMissingLang.length === 0 || !isTMDBConfigured()) return
+
+    let isMounted = true
+    const healLanguages = async () => {
+      const batch = itemsMissingLang.slice(0, 15)
+      for (const item of batch) {
+        if (!isMounted) break
+        try {
+          const endpoint = item.type === 'movie' ? `/movie/${item.tmdb_id}` : `/tv/${item.tmdb_id}`
+          const details = await fetchTMDB(endpoint)
+          if (details && details.original_language && isMounted) {
+            onUpdateItem(item.id, { original_language: details.original_language })
+          }
+        } catch (err) {
+          // Ignore individual fetch errors
+        }
+      }
+    }
+    healLanguages()
+    return () => { isMounted = false }
+  }, [items, onUpdateItem])
   
   // Multi-Select Mode States
   const [isSelectMode, setIsSelectMode] = useState(false)
@@ -104,33 +141,123 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
       .filter(Boolean)
   )).sort((a, b) => parseInt(b) - parseInt(a))
 
-  // Get all unique original languages from items of the active type
-  const availableLanguages = Array.from(new Set(
-    items
-      .filter(item => item.type === typeFilter)
-      .map(item => item.original_language || 'en')
-      .filter(Boolean)
-  )).sort().map(lang => ({
-    code: lang,
-    name: LANGUAGE_NAMES[lang.toLowerCase()] || lang.toUpperCase()
-  }))
+  // Get all unique original languages from items of active type + popular defaults
+  const availableLanguagesMap = new Map()
+  const COMMON_LANG_CODES = ['en', 'hi', 'ta', 'te', 'ml', 'kn', 'mr', 'bn', 'ja', 'ko', 'es', 'fr', 'de']
+  
+  items
+    .filter(item => item.type === typeFilter)
+    .forEach(item => {
+      const code = (item.original_language || '').toLowerCase().trim()
+      if (code && !availableLanguagesMap.has(code)) {
+        availableLanguagesMap.set(code, {
+          code,
+          name: LANGUAGE_NAMES[code] || code.toUpperCase()
+        })
+      }
+    })
+
+  COMMON_LANG_CODES.forEach(code => {
+    if (!availableLanguagesMap.has(code)) {
+      availableLanguagesMap.set(code, {
+        code,
+        name: LANGUAGE_NAMES[code] || code.toUpperCase()
+      })
+    }
+  })
+
+  const availableLanguages = Array.from(availableLanguagesMap.values())
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // ── TV Show grouping helper ──────────────────────────────────────────────
+  // Collapses all per-season items for a show into one representative card.
+  const groupTVShows = (tvItems) => {
+    const map = new Map()
+    for (const s of tvItems) {
+      const key = s.tmdb_id || s.id
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(s)
+    }
+    return Array.from(map.values()).map(seasons => {
+      const sorted = [...seasons].sort((a, b) => (a.season_number || 1) - (b.season_number || 1))
+      const rep = sorted.reduce((a, b) =>
+        new Date(b.watched_at || b.created_at || 0) > new Date(a.watched_at || a.created_at || 0) ? b : a
+      , sorted[0])
+      const completedSeasons = sorted.filter(s => s.status === 'completed')
+      const watchingSeasons  = sorted.filter(s => s.status === 'watching' || s.status === 'pending')
+      const totalSeasons     = sorted.length
+      const activeSeason = watchingSeasons[0] || sorted.find(s => s.status !== 'completed') || sorted[sorted.length - 1]
+
+      const getEpProgress = (s) => {
+        if (!s || !s.season_progress) return 0
+        if (typeof s.season_progress === 'number') return s.season_progress
+        const num = s.season_number || 1
+        return s.season_progress[num] !== undefined ? Number(s.season_progress[num]) : (Object.values(s.season_progress)[0] || 0)
+      }
+
+      const rawEpProgress = getEpProgress(activeSeason)
+      const activeEpisodeProgress = (activeSeason?.status === 'watching' && rawEpProgress === 0) ? 1 : rawEpProgress
+      const pct = totalSeasons > 0 ? Math.round((completedSeasons.length / totalSeasons) * 100) : 0
+      
+      let showStatus = rep.status || 'planned'
+      if (completedSeasons.length === totalSeasons && totalSeasons > 0) {
+        showStatus = 'completed'
+      } else if (activeSeason && activeSeason.status === 'watching') {
+        showStatus = 'watching'
+      } else if (activeSeason && activeEpisodeProgress === 0 && activeSeason.status !== 'completed') {
+        showStatus = 'pending'
+      } else if (watchingSeasons.length > 0) {
+        showStatus = 'watching'
+      } else if (completedSeasons.length > 0) {
+        showStatus = 'watching'
+      }
+      return {
+        ...rep,
+        _isGrouped: true,
+        _allSeasons: sorted,
+        _completedSeasons: completedSeasons.length,
+        _remainingSeasons: totalSeasons - completedSeasons.length,
+        _totalSeasons: totalSeasons,
+        _activeSeason: activeSeason,
+        _activeEpisodeProgress: activeEpisodeProgress,
+        _pct: pct,
+        virtualStatus: showStatus,
+        _sortDate: rep.watched_at || rep.created_at
+      }
+    })
+  }
 
   // Filter virtual items based on status, year, language, and local query search
-  const filteredItems = items
-    .filter(item => item.type === typeFilter)
-    .map(item => ({ 
-      ...item, 
-      virtualStatus: item.status || 'planned'
-    }))
-    .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
-    .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
-    .filter(item => languageFilter === 'all' || (item.original_language || 'en') === languageFilter)
-    .filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  // For TV: group by show first, then filter on the aggregated status
+  const rawTVItems = typeFilter === 'tv'
+    ? items.filter(item => item.type === 'tv')
+    : []
+  const groupedTVShows = typeFilter === 'tv' ? groupTVShows(rawTVItems) : []
+
+  const matchLanguage = (itemLang, targetFilter) => {
+    if (targetFilter === 'all') return true
+    if (!itemLang) return false
+    return itemLang.toLowerCase().trim() === targetFilter.toLowerCase().trim()
+  }
+
+  const filteredItems = typeFilter === 'tv'
+    ? groupedTVShows
+        .filter(show => statusFilter === 'all' || show.virtualStatus === statusFilter)
+        .filter(show => yearFilter === 'all' || show.release_year === yearFilter)
+        .filter(show => matchLanguage(show.original_language, languageFilter))
+        .filter(show => show.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : items
+        .filter(item => item.type === typeFilter)
+        .map(item => ({ ...item, virtualStatus: item.status || 'planned' }))
+        .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
+        .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
+        .filter(item => matchLanguage(item.original_language, languageFilter))
+        .filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
   // Sort items
   const sortedItems = [...filteredItems].sort((a, b) => {
     if (sortBy === 'newest_added') {
-      return new Date(b.watched_at || b.created_at) - new Date(a.watched_at || a.created_at)
+      return new Date(b._sortDate || b.watched_at || b.created_at) - new Date(a._sortDate || a.watched_at || a.created_at)
     }
     if (sortBy === 'release_year') {
       return parseInt(b.release_year || 0) - parseInt(a.release_year || 0)
@@ -317,7 +444,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   const getStatusLabel = (status) => {
     if (status === 'completed') return typeFilter === 'game' ? 'Beaten' : 'Completed'
     if (status === 'watching') return typeFilter === 'game' ? 'Playing' : 'Watching'
-    if (status === 'pending') return 'Pending'
+    if (status === 'pending') return typeFilter === 'tv' ? 'Up Next' : 'Pending'
     if (status === 'planned') return 'Planned'
     if (status === 'backlog') return 'Backlog'
     return 'Planned'
@@ -346,11 +473,11 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
             { id: 'all', label: 'All Items' },
             { id: 'completed', label: typeFilter === 'game' ? 'Beaten' : 'Completed' },
             { id: 'watching', label: typeFilter === 'game' ? 'Playing' : 'Watching' },
-            { id: 'pending', label: 'Pending' },
+            { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
             { id: 'planned', label: 'Planned' },
-            { id: 'backlog', label: 'Backlog' },
+            typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
             { id: 'lists', label: 'Custom Lists' }
-          ].map((tab) => (
+          ].filter(Boolean).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
@@ -486,11 +613,11 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           { id: 'all', label: 'All Items' },
           { id: 'completed', label: typeFilter === 'game' ? 'Beaten' : 'Completed' },
           { id: 'watching', label: typeFilter === 'game' ? 'Playing' : 'Watching' },
-          { id: 'pending', label: 'Pending' },
+          { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
           { id: 'planned', label: 'Planned' },
-          { id: 'backlog', label: 'Backlog' },
+          typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
           { id: 'lists', label: 'Custom Lists' }
-        ].map((tab) => (
+        ].filter(Boolean).map((tab) => (
           <button
             key={tab.id}
             onClick={() => setStatusFilter(tab.id)}
@@ -508,11 +635,26 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
       {/* Media Grid Cards */}
       {sortedItems.length > 0 ? (
         <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6">
-          {sortedItems.map((item) => (
+          {sortedItems.map((item) => {
+            // For grouped TV shows, the id is the rep item's id;
+            // for multi-select we match on the representative id
+            const cardId = item.id
+            const isTV = item.type === 'tv'
+            const activeSeason    = item._activeSeason
+            const pct             = item._pct ?? 0
+            const completedSeas   = item._completedSeasons ?? 0
+            const remainingSeas   = item._remainingSeasons ?? 0
+            const totalSeas       = item._totalSeasons ?? 0
+            const activeSeasonNum = activeSeason?.season_number ?? item.season_number ?? null
+
+            // For TV groups, navigate via the ACTIVE (in-progress) season item
+            const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
+
+            return (
             <div 
-              key={item.id}
+              key={cardId}
               className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full ${
-                isSelectMode && selectedIds.includes(item.id)
+                isSelectMode && selectedIds.includes(cardId)
                   ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
                   : 'border-slate-800 hover:border-slate-700/50'
               }`}
@@ -523,12 +665,12 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 onClick={() => {
                   if (isSelectMode) {
                     setSelectedIds(prev => 
-                      prev.includes(item.id) 
-                        ? prev.filter(id => id !== item.id) 
-                        : [...prev, item.id]
+                      prev.includes(cardId) 
+                        ? prev.filter(id => id !== cardId) 
+                        : [...prev, cardId]
                     )
                   } else {
-                    onItemClick && onItemClick(item)
+                    onItemClick && onItemClick(navItem)
                   }
                 }}
               >
@@ -542,7 +684,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 {/* Multi-select check icon */}
                 {isSelectMode && (
                   <div className="absolute top-2 right-2 z-20">
-                    {selectedIds.includes(item.id) ? (
+                    {selectedIds.includes(cardId) ? (
                       <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
                         <Check className="w-3.5 h-3.5 font-bold" />
                       </div>
@@ -559,46 +701,39 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   {getStatusLabel(item.virtualStatus)}
                 </div>
 
-                {/* Season Badge for TV */}
-                {item.type === 'tv' && item.season_number && (
-                  <div className="absolute bottom-2 left-2 bg-slate-950/90 backdrop-blur border border-violet-700/60 text-violet-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
-                    S{item.season_number}
+                {/* TV: total seasons badge top-right (non-select mode) */}
+                {isTV && !isSelectMode && totalSeas > 1 && (
+                  <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
+                    {totalSeas}S
                   </div>
                 )}
-
-                {/* Dynamic Overlay Text for TV Shows */}
-                {item.overlayText && (
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950 to-transparent p-3 pt-8 pb-4 pointer-events-none group-hover:opacity-0 transition-opacity">
-                    <div className="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 text-white font-black tracking-tight text-xs text-center py-1.5 px-2 rounded-lg shadow-xl">
-                      {item.overlayText}
-                    </div>
-                  </div>
-                )}
-
-
               </div>
 
               {/* Card Footer Details */}
-              <div className="p-3.5 flex flex-col flex-grow">
-                <h3 className="font-semibold text-sm text-slate-200 line-clamp-1 group-hover:text-white transition-colors mb-1">
+              <div className="p-3 flex flex-col flex-grow justify-between">
+                <h3 className="font-semibold text-sm text-slate-200 line-clamp-1 group-hover:text-white transition-colors">
                   {item.title}
                 </h3>
-                <div className="flex items-center justify-between text-xs text-slate-500 mt-auto">
-                  {item.type === 'game' ? (
-                    <span className="flex items-center gap-0.5">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {item.release_year || 'N/A'}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  {item.review && (
-                    <MessageSquare className="w-3.5 h-3.5 text-slate-400" title="Has written review" />
-                  )}
-                </div>
+
+                {!isTV && (
+                  <div className="flex items-center justify-between text-xs text-slate-500 mt-auto">
+                    {item.type === 'game' ? (
+                      <span className="flex items-center gap-0.5">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {item.release_year || 'N/A'}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    {item.review && (
+                      <MessageSquare className="w-3.5 h-3.5 text-slate-400" title="Has written review" />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         /* Empty Grid State */
@@ -637,9 +772,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 >
                   <option value="completed">Completed</option>
                   <option value="watching">Active (Watching/Playing)</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending">{(editingItem?.type === 'tv' || typeFilter === 'tv') ? 'Up Next' : 'Pending'}</option>
                   <option value="planned">Planned (Watchlist)</option>
-                  <option value="backlog">Planned (Backlog)</option>
+                  {(editingItem?.type !== 'tv' && typeFilter !== 'tv') && <option value="backlog">Planned (Backlog)</option>}
                 </select>
               </div>
 
@@ -709,9 +844,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <option value="">Move Status...</option>
                   <option value="completed">{typeFilter === 'game' ? 'Beaten' : 'Completed'}</option>
                   <option value="watching">{typeFilter === 'game' ? 'Playing' : 'Watching'}</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending">{typeFilter === 'tv' ? 'Up Next' : 'Pending'}</option>
                   <option value="planned">Planned (Watchlist)</option>
-                  <option value="backlog">Backlog</option>
+                  {typeFilter !== 'tv' && <option value="backlog">Backlog</option>}
                 </select>
               </div>
 

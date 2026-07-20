@@ -13,11 +13,6 @@
   }
 }
 
-/* Reset all border-radii globally to make all boxes corner sharp */
-*, *::before, *::after {
-  border-radius: 0px !important;
-}
-
 /* Custom scrollbars for a premium dark mode feel */
 ::-webkit-scrollbar {
   width: 8px;
@@ -30,7 +25,7 @@
 
 ::-webkit-scrollbar-thumb {
   background: #1e293b; /* bg-slate-800 */
-  border-radius: 0px !important;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {

@@ -115,11 +115,15 @@ export const addFirebaseItem = async (userId, item) => {
     type: item.type || 'movie',
     tmdb_id: item.tmdb_id || '',
     season_number: item.season_number || null,
+    season_progress: item.season_progress !== undefined ? item.season_progress : null,
+    seasons_watched: Array.isArray(item.seasons_watched) ? item.seasons_watched : [],
     poster_path: item.poster_path || '',
     rating: Number(item.rating) || 0,
     review: item.review || '',
     release_year: item.release_year || '',
     status: item.status || 'completed',
+    country: item.country || '',
+    original_language: item.original_language || '',
     watched_at: item.watched_at || new Date().toISOString(),
     created_at: item.created_at || new Date().toISOString()
   }
@@ -142,11 +146,15 @@ export const migrateLocalItemsToFirebase = async (userId, localItems) => {
       type: item.type || 'movie',
       tmdb_id: item.tmdb_id || '',
       season_number: item.season_number || null,
+      season_progress: item.season_progress !== undefined ? item.season_progress : null,
+      seasons_watched: Array.isArray(item.seasons_watched) ? item.seasons_watched : [],
       poster_path: item.poster_path || '',
       rating: Number(item.rating) || 0,
       review: item.review || '',
       release_year: item.release_year || '',
       status: item.status || 'completed',
+      country: item.country || '',
+      original_language: item.original_language || '',
       watched_at: item.watched_at || new Date().toISOString(),
       created_at: item.created_at || new Date().toISOString()
     }
@@ -247,11 +255,15 @@ export const batchAddFirebaseItems = async (userId, itemsList) => {
         type: item.type || 'movie',
         tmdb_id: item.tmdb_id || '',
         season_number: item.season_number || null,
+        season_progress: item.season_progress !== undefined ? item.season_progress : null,
+        seasons_watched: Array.isArray(item.seasons_watched) ? item.seasons_watched : [],
         poster_path: item.poster_path || '',
         rating: Number(item.rating) || 0,
         review: item.review || '',
         release_year: item.release_year || '',
         status: item.status || 'completed',
+        country: item.country || '',
+        original_language: item.original_language || '',
         watched_at: item.watched_at || new Date().toISOString(),
         created_at: item.created_at || new Date().toISOString()
       }
