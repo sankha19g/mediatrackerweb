@@ -380,14 +380,18 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const [imageModalType, setImageModalType] = useState('posters')
 
   let item = items.find(i => i.id === id)
+  if (item && item.status === 'list_only') {
+    item = { ...item, isExplore: true }
+  }
   if (!item && location.state?.addedItem && location.state.addedItem.id === id) {
-    item = location.state.addedItem
+    const stateItem = location.state.addedItem
+    item = stateItem.status === 'list_only' ? { ...stateItem, isExplore: true } : stateItem
   }
 
   // If it's an explore route, we construct a stub item
   if (!item && tmdb_id && type) {
     // Check if it's actually in our items anyway
-    const existing = items.find(i => i.tmdb_id && i.tmdb_id.toString() === tmdb_id.toString() && i.type === type)
+    const existing = items.find(i => i.tmdb_id && i.tmdb_id.toString() === tmdb_id.toString() && i.type === type && i.status !== 'list_only')
     if (existing) {
       item = existing
     } else {
@@ -762,7 +766,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const cast = (details?.credits?.cast || []).filter(actor => actor.profile_path || actor.name)
 
   const userWatchedPart = (partId) => {
-    return items.find(i => i.type === 'movie' && i.tmdb_id === partId.toString())
+    return items.find(i => i.type === 'movie' && i.tmdb_id === partId.toString() && i.status !== 'list_only')
   }
 
   const sortedParts = collectionDetails?.parts

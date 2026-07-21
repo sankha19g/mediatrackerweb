@@ -272,7 +272,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
       result.sort((a, b) => {
         const getRank = (item) => {
           const mType = item.media_type || (item.title ? 'movie' : 'tv')
-          const wi = watchedItems.find(w => w.type === mType && w.tmdb_id === item.id.toString())
+          const wi = watchedItems.find(w => w.type === mType && w.tmdb_id === item.id.toString() && w.status !== 'list_only')
           if (!wi) return 4
           if (wi.status === 'completed') return 1
           if (wi.status === 'watching') return 2
@@ -399,7 +399,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
 
   const watchedCount = works.filter(item => {
     const mediaType = item.media_type || (item.title ? 'movie' : 'tv')
-    return watchedItems.some(wi => wi.type === mediaType && wi.tmdb_id === item.id.toString())
+    return watchedItems.some(wi => wi.type === mediaType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only')
   }).length
 
   return (
@@ -669,7 +669,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
               const releaseYear = releaseDate ? releaseDate.split('-')[0] : 'N/A'
               const cardKey = `work_${item.id}`
               const watched = watchedItems.find(wi =>
-                wi.type === mediaType && wi.tmdb_id === item.id.toString()
+                wi.type === mediaType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only'
               )
 
               return (
@@ -1153,7 +1153,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
     const isSelected = !!selectedItems[cardKey]
 
     const watched = (isMovie || isTV) && watchedItems.find(wi =>
-      wi.type === mediaType && wi.tmdb_id === item.id.toString()
+      wi.type === mediaType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only'
     )
 
     const cardImage = isPerson 
