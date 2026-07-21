@@ -51,7 +51,7 @@ const LANGUAGE_NAMES = {
   'ro': 'Romanian'
 }
 
-export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveItem, onItemClick, user }) {
+export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveItem, onItemClick, onAddItem, onAddItems, user }) {
   const [statusFilter, setStatusFilter] = useState(() => {
     return localStorage.getItem('cinelog_status_filter') || 'all'
   })
@@ -230,7 +230,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   // Filter virtual items based on status, year, language, and local query search
   // For TV: group by show first, then filter on the aggregated status
   const rawTVItems = typeFilter === 'tv'
-    ? items.filter(item => item.type === 'tv')
+    ? items.filter(item => item.type === 'tv' && item.status !== 'list_only')
     : []
   const groupedTVShows = typeFilter === 'tv' ? groupTVShows(rawTVItems) : []
 
@@ -247,7 +247,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
         .filter(show => matchLanguage(show.original_language, languageFilter))
         .filter(show => show.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : items
-        .filter(item => item.type === typeFilter)
+        .filter(item => item.type === typeFilter && item.status !== 'list_only')
         .map(item => ({ ...item, virtualStatus: item.status || 'planned' }))
         .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
         .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
@@ -497,6 +497,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           user={user}
           watchlistItems={items}
           onItemClick={onItemClick}
+          onAddItem={onAddItem}
+          onAddItems={onAddItems}
+          onUpdateItem={onUpdateItem}
         />
       </div>
     )

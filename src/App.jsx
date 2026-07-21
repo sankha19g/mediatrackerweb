@@ -626,7 +626,7 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
         activeView={activeView}
         onNavigate={(view) => navigate(view === 'watchlist' ? '/' : `/${view}`)}
-        watchedCount={items.length}
+        watchedCount={items.filter(i => i.status !== 'list_only').length}
         user={user}
         onLogout={handleLogout}
       />
@@ -674,6 +674,8 @@ export default function App() {
                   onUpdateItem={handleUpdateItem}
                   onRemoveItem={handleRemoveItem}
                   onItemClick={(item) => navigate(`/media/${item.id}`)}
+                  onAddItem={handleAddItem}
+                  onAddItems={handleAddItems}
                   user={user}
                 />
               } />

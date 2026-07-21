@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info } from 'lucide-react'
-import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList } from '../lib/firebase'
-import { getPosterUrl } from '../lib/tmdb'
+import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown } from 'lucide-react'
+import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList, updateFirebaseList } from '../lib/firebase'
+import { getPosterUrl, fetchTMDB } from '../lib/tmdb'
 
-export default function CustomLists({ typeFilter, user, watchlistItems, onItemClick }) {
+export default function CustomLists({ typeFilter, user, watchlistItems, onItemClick, onAddItem, onAddItems, onUpdateItem }) {
   const [lists, setLists] = useState([])
   const [activeListId, setActiveListId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -13,7 +13,37 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [selectedItemId, setSelectedItemId] = useState('')
   const [error, setError] = useState('')
   
+  const [letterboxdUrl, setLetterboxdUrl] = useState('')
+  const [newThumbnailUrl, setNewThumbnailUrl] = useState('')
+  const [newBannerUrl, setNewBannerUrl] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importStatus, setImportStatus] = useState('')
+  
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editListName, setEditListName] = useState('')
+  const [editListDesc, setEditListDesc] = useState('')
+  const [editThumbnailUrl, setEditThumbnailUrl] = useState('')
+  const [editBannerUrl, setEditBannerUrl] = useState('')
+  const [editLetterboxdUrl, setEditLetterboxdUrl] = useState('')
+  
+  const [fadeWatched, setFadeWatched] = useState(false)
+  const [showListFilterDropdown, setShowListFilterDropdown] = useState(false)
+  const [listSortBy, setListSortBy] = useState('newest_added')
+  const [listSearchQuery, setListSearchQuery] = useState('')
+  
   const isCloud = isFirebaseConfigured() && user
+
+  // Auto-migrate existing custom list items with 'planned' status to 'list_only'
+  useEffect(() => {
+    if (lists.length === 0 || watchlistItems.length === 0 || !onUpdateItem) return
+
+    const customListItemIds = new Set(lists.flatMap(list => list.item_ids))
+    watchlistItems.forEach(item => {
+      if (customListItemIds.has(item.id) && (item.status === 'planned' || !item.status)) {
+        onUpdateItem(item.id, { status: 'list_only' })
+      }
+    })
+  }, [lists, watchlistItems, onUpdateItem])
 
   // Load lists on mount/type change/user change
   useEffect(() => {
@@ -51,9 +81,176 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     e.preventDefault()
     if (!newListName.trim()) return
 
+    setImporting(true)
+    setError('')
+    setImportStatus('Initializing...')
+
     try {
+      let importedItemIds = []
+
+      if (letterboxdUrl.trim() && typeFilter === 'movie') {
+        setImportStatus('Fetching Letterboxd list...')
+        const cleanUrl = letterboxdUrl.trim()
+        
+        // Use fallback CORS proxies to prevent NetworkErrors
+        let html = ''
+        let fetchSuccess = false
+        const proxies = [
+          (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+          (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+        ]
+
+        for (const proxyFn of proxies) {
+          try {
+            const proxyUrl = proxyFn(cleanUrl)
+            const response = await fetch(proxyUrl)
+            if (!response.ok) continue
+            
+            if (proxyUrl.includes('allorigins')) {
+              const json = await response.json()
+              html = json.contents
+            } else {
+              html = await response.text()
+            }
+            if (html && html.trim().length > 0) {
+              fetchSuccess = true
+              break
+            }
+          } catch (e) {
+            console.error('CORS proxy fetch failed:', e)
+          }
+        }
+
+        if (!fetchSuccess) {
+          throw new Error('CORS fetch failed. Try again, or ensure the Letterboxd list is public.')
+        }
+
+        setImportStatus('Parsing list elements...')
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+        const items = doc.querySelectorAll('.poster-list li, .poster-grid li, .film-poster, .posteritem')
+        
+        const parsedMovies = []
+        items.forEach(li => {
+          const nameAttr = li.querySelector('[data-item-name]')?.getAttribute('data-item-name') || 
+                           li.getAttribute('data-item-name') ||
+                           li.querySelector('img')?.getAttribute('alt')
+          
+          if (nameAttr) {
+            const yearMatch = nameAttr.match(/\((\d{4})\)$/)
+            const year = yearMatch ? yearMatch[1] : ''
+            const title = year ? nameAttr.replace(/\s*\(\d{4}\)$/, '').trim() : nameAttr.trim()
+            
+            if (title && title.toLowerCase() !== 'pcullen8' && !parsedMovies.some(m => m.title.toLowerCase() === title.toLowerCase())) {
+              parsedMovies.push({ title, year })
+            }
+          }
+        })
+
+        if (parsedMovies.length === 0) {
+          throw new Error('No movies found on the provided Letterboxd list. Make sure the list is public.')
+        }
+
+        setImportStatus(`Found ${parsedMovies.length} movies. Querying TMDB slowly...`)
+        
+        const searchTMDBItem = async (title, year) => {
+          try {
+            const res = await fetchTMDB('/search/movie', { query: title, ...(year && { year }) })
+            if (res.results && res.results.length > 0) {
+              return res.results[0]
+            }
+          } catch (err) {
+            console.error(`Failed to lookup ${title} on TMDB:`, err)
+          }
+          return null
+        }
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+        const resolvedTmdbItems = []
+
+        for (let i = 0; i < parsedMovies.length; i++) {
+          const movie = parsedMovies[i]
+          setImportStatus(`TMDB query: Processing ${i + 1} of ${parsedMovies.length} ("${movie.title}")...`)
+          const resolved = await searchTMDBItem(movie.title, movie.year)
+          if (resolved) {
+            resolvedTmdbItems.push(resolved)
+          }
+          // Sleep for 450ms between each request to comply with rate limits and prevent IP ban
+          await sleep(450)
+        }
+
+        if (resolvedTmdbItems.length === 0) {
+          throw new Error('Could not resolve any movies to TMDB database entries.')
+        }
+
+        setImportStatus(`Resolved ${resolvedTmdbItems.length} movies. Checking existing database watchlist...`)
+        
+        const itemsToCreate = []
+        
+        for (const tmdbItem of resolvedTmdbItems) {
+          // Check if item is already in watchlistItems
+          const existing = watchlistItems.find(w => w.type === 'movie' && w.tmdb_id === tmdbItem.id.toString())
+          if (existing) {
+            importedItemIds.push(existing.id)
+            if (onUpdateItem && (existing.status === 'planned' || !existing.status)) {
+              onUpdateItem(existing.id, { status: 'list_only' })
+            }
+          } else {
+            // Need to create it
+            const releaseYear = (tmdbItem.release_date || '').split('-')[0]
+            const getCountryCode = () => {
+              if (tmdbItem.origin_country && Array.isArray(tmdbItem.origin_country) && tmdbItem.origin_country.length > 0) {
+                return tmdbItem.origin_country[0]
+              }
+              return 'US'
+            }
+            itemsToCreate.push({
+              title: tmdbItem.title,
+              type: 'movie',
+              tmdb_id: tmdbItem.id.toString(),
+              poster_path: tmdbItem.poster_path || '',
+              release_year: releaseYear,
+              status: 'list_only',
+              country: getCountryCode(),
+              original_language: tmdbItem.original_language || 'en',
+              review: ''
+            })
+          }
+        }
+
+        if (itemsToCreate.length > 0) {
+          setImportStatus(`Adding ${itemsToCreate.length} new movies to your watchlist...`)
+          if (onAddItems) {
+            const createdItems = await onAddItems(itemsToCreate)
+            if (createdItems && createdItems.length > 0) {
+              importedItemIds.push(...createdItems.map(i => i.id))
+            }
+          } else if (onAddItem) {
+            for (const item of itemsToCreate) {
+              const created = await onAddItem(item)
+              if (created && created.id) {
+                importedItemIds.push(created.id)
+              }
+            }
+          }
+        }
+      }
+
+      setImportStatus('Creating your custom list...')
+      
       if (isCloud) {
-        const newList = await addFirebaseList(user.uid, newListName.trim(), newListDesc.trim(), typeFilter)
+        const newList = await addFirebaseList(
+          user.uid, 
+          newListName.trim(), 
+          newListDesc.trim(), 
+          typeFilter, 
+          newThumbnailUrl.trim(), 
+          newBannerUrl.trim()
+        )
+        if (importedItemIds.length > 0) {
+          await updateFirebaseListItems(newList.id, importedItemIds)
+          newList.item_ids = importedItemIds
+        }
         setLists(prev => [newList, ...prev])
       } else {
         const localId = `local_list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -63,7 +260,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           name: newListName.trim(),
           description: newListDesc.trim(),
           type: typeFilter,
-          item_ids: [],
+          thumbnail_url: newThumbnailUrl.trim(),
+          banner_url: newBannerUrl.trim(),
+          item_ids: importedItemIds,
           created_at: new Date().toISOString()
         }
 
@@ -77,10 +276,16 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
       setNewListName('')
       setNewListDesc('')
+      setLetterboxdUrl('')
+      setNewThumbnailUrl('')
+      setNewBannerUrl('')
       setShowCreateModal(false)
     } catch (err) {
       console.error('Failed to create list:', err)
-      setError('Could not create list.')
+      setError(err.message || 'Could not create list.')
+    } finally {
+      setImporting(false)
+      setImportStatus('')
     }
   }
 
@@ -107,6 +312,216 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     } catch (err) {
       console.error('Failed to delete list:', err)
       setError('Failed to delete list.')
+    }
+  }
+
+  const handleOpenEditModal = () => {
+    if (!activeList) return
+    setEditListName(activeList.name)
+    setEditListDesc(activeList.description || '')
+    setEditThumbnailUrl(activeList.thumbnail_url || '')
+    setEditBannerUrl(activeList.banner_url || '')
+    setEditLetterboxdUrl('')
+    setShowEditModal(true)
+  }
+
+  const handleSaveEditList = async (e) => {
+    e.preventDefault()
+    if (!activeList || !editListName.trim()) return
+
+    setImporting(true)
+    setError('')
+    setImportStatus('Initializing list settings update...')
+
+    try {
+      let finalItemIds = [...activeList.item_ids]
+
+      if (editLetterboxdUrl.trim() && typeFilter === 'movie') {
+        setImportStatus('Fetching Letterboxd list...')
+        const cleanUrl = editLetterboxdUrl.trim()
+        
+        // Use fallback CORS proxies
+        let html = ''
+        let fetchSuccess = false
+        const proxies = [
+          (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+          (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+        ]
+
+        for (const proxyFn of proxies) {
+          try {
+            const proxyUrl = proxyFn(cleanUrl)
+            const response = await fetch(proxyUrl)
+            if (!response.ok) continue
+            
+            if (proxyUrl.includes('allorigins')) {
+              const json = await response.json()
+              html = json.contents
+            } else {
+              html = await response.text()
+            }
+            if (html && html.trim().length > 0) {
+              fetchSuccess = true
+              break
+            }
+          } catch (e) {
+            console.error('CORS proxy fetch failed:', e)
+          }
+        }
+
+        if (!fetchSuccess) {
+          throw new Error('CORS fetch failed. Try again, or ensure the Letterboxd list is public.')
+        }
+
+        setImportStatus('Parsing list elements...')
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+        const items = doc.querySelectorAll('.poster-list li, .poster-grid li, .film-poster, .posteritem')
+        
+        const parsedMovies = []
+        items.forEach(li => {
+          const nameAttr = li.querySelector('[data-item-name]')?.getAttribute('data-item-name') || 
+                           li.getAttribute('data-item-name') ||
+                           li.querySelector('img')?.getAttribute('alt')
+          
+          if (nameAttr) {
+            const yearMatch = nameAttr.match(/\((\d{4})\)$/)
+            const year = yearMatch ? yearMatch[1] : ''
+            const title = year ? nameAttr.replace(/\s*\(\d{4}\)$/, '').trim() : nameAttr.trim()
+            
+            if (title && title.toLowerCase() !== 'pcullen8' && !parsedMovies.some(m => m.title.toLowerCase() === title.toLowerCase())) {
+              parsedMovies.push({ title, year })
+            }
+          }
+        })
+
+        if (parsedMovies.length === 0) {
+          throw new Error('No movies found on the provided Letterboxd list. Make sure the list is public.')
+        }
+
+        setImportStatus(`Found ${parsedMovies.length} movies. Querying TMDB slowly...`)
+        
+        const searchTMDBItem = async (title, year) => {
+          try {
+            const res = await fetchTMDB('/search/movie', { query: title, ...(year && { year }) })
+            if (res.results && res.results.length > 0) {
+              return res.results[0]
+            }
+          } catch (err) {
+            console.error(`Failed to lookup ${title} on TMDB:`, err)
+          }
+          return null
+        }
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+        const resolvedTmdbItems = []
+
+        for (let i = 0; i < parsedMovies.length; i++) {
+          const movie = parsedMovies[i]
+          setImportStatus(`TMDB query: Processing ${i + 1} of ${parsedMovies.length} ("${movie.title}")...`)
+          const resolved = await searchTMDBItem(movie.title, movie.year)
+          if (resolved) {
+            resolvedTmdbItems.push(resolved)
+          }
+          await sleep(450)
+        }
+
+        if (resolvedTmdbItems.length === 0) {
+          throw new Error('Could not resolve any movies to TMDB database entries.')
+        }
+
+        setImportStatus(`Resolved ${resolvedTmdbItems.length} movies. Checking existing database watchlist...`)
+        
+        const itemsToCreate = []
+        const importedItemIds = []
+        
+        for (const tmdbItem of resolvedTmdbItems) {
+          const existing = watchlistItems.find(w => w.type === 'movie' && w.tmdb_id === tmdbItem.id.toString())
+          if (existing) {
+            importedItemIds.push(existing.id)
+            if (onUpdateItem && (existing.status === 'planned' || !existing.status)) {
+              onUpdateItem(existing.id, { status: 'list_only' })
+            }
+          } else {
+            const releaseYear = (tmdbItem.release_date || '').split('-')[0]
+            const getCountryCode = () => {
+              if (tmdbItem.origin_country && Array.isArray(tmdbItem.origin_country) && tmdbItem.origin_country.length > 0) {
+                return tmdbItem.origin_country[0]
+              }
+              return 'US'
+            }
+            itemsToCreate.push({
+              title: tmdbItem.title,
+              type: 'movie',
+              tmdb_id: tmdbItem.id.toString(),
+              poster_path: tmdbItem.poster_path || '',
+              release_year: releaseYear,
+              status: 'list_only',
+              country: getCountryCode(),
+              original_language: tmdbItem.original_language || 'en',
+              review: ''
+            })
+          }
+        }
+
+        if (itemsToCreate.length > 0) {
+          setImportStatus(`Adding ${itemsToCreate.length} new movies to your watchlist...`)
+          if (onAddItems) {
+            const createdItems = await onAddItems(itemsToCreate)
+            if (createdItems && createdItems.length > 0) {
+              importedItemIds.push(...createdItems.map(i => i.id))
+            }
+          } else if (onAddItem) {
+            for (const item of itemsToCreate) {
+              const created = await onAddItem(item)
+              if (created && created.id) {
+                importedItemIds.push(created.id)
+              }
+            }
+          }
+        }
+
+        // Merge and prevent duplicates
+        finalItemIds = Array.from(new Set([...finalItemIds, ...importedItemIds]))
+      }
+
+      setImportStatus('Saving settings updates...')
+      
+      const updates = {
+        name: editListName.trim(),
+        description: editListDesc.trim(),
+        thumbnail_url: editThumbnailUrl.trim(),
+        banner_url: editBannerUrl.trim(),
+        item_ids: finalItemIds
+      }
+
+      if (isCloud && !activeList.id.startsWith('local_list_')) {
+        await updateFirebaseList(activeList.id, updates)
+        if (editLetterboxdUrl.trim()) {
+          await updateFirebaseListItems(activeList.id, finalItemIds)
+        }
+      } else {
+        const localListsRaw = localStorage.getItem('local_custom_lists')
+        if (localListsRaw) {
+          const parsed = JSON.parse(localListsRaw)
+          const updated = parsed.map(list => 
+            list.id === activeList.id ? { ...list, ...updates } : list
+          )
+          localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+        }
+      }
+
+      setLists(prev => prev.map(list => 
+        list.id === activeList.id ? { ...list, ...updates } : list
+      ))
+      setEditLetterboxdUrl('')
+      setShowEditModal(false)
+    } catch (err) {
+      console.error('Failed to update list details:', err)
+      setError(err.message || 'Could not update list details.')
+    } finally {
+      setImporting(false)
+      setImportStatus('')
     }
   }
 
@@ -191,6 +606,35 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       .filter(Boolean) // Filter out items that might have been deleted from main log
   }
 
+  const rawListItems = activeList ? getListItems(activeList.item_ids) : []
+
+  // Filter items in active list by search query
+  const filteredListItems = rawListItems.filter(item => 
+    item.title.toLowerCase().includes(listSearchQuery.toLowerCase())
+  )
+
+  // Sort items in active list
+  const sortedListItems = [...filteredListItems].sort((a, b) => {
+    if (listSortBy === 'release_year') {
+      return parseInt(b.release_year || 0) - parseInt(a.release_year || 0)
+    }
+    if (listSortBy === 'vote_average') {
+      return (b.vote_average || 0) - (a.vote_average || 0)
+    }
+    if (listSortBy === 'popularity') {
+      return (b.popularity || 0) - (a.popularity || 0)
+    }
+    if (listSortBy === 'title') {
+      return a.title.localeCompare(b.title)
+    }
+    if (listSortBy === 'newest_added') {
+      const idxA = activeList.item_ids.indexOf(a.id)
+      const idxB = activeList.item_ids.indexOf(b.id)
+      return idxB - idxA
+    }
+    return 0
+  })
+
   // Find candidate items that are of the correct type and NOT in the active list already
   const candidateItems = watchlistItems
     .filter(item => item.type === typeFilter)
@@ -230,117 +674,170 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       {activeList ? (
         /* =================== DETAILED VIEW OF ACTIVE LIST =================== */
         <div className="space-y-6">
-          {/* List Header controls */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-900 pb-5">
-            <div>
-              <button 
-                onClick={() => { setActiveListId(null); setError(''); }}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-400 hover:text-violet-300 transition-colors mb-3 cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back to Custom Lists
-              </button>
-              <h2 className="text-2xl font-extrabold text-white flex items-center gap-2">
-                <FolderOpen className="w-6 h-6 text-violet-400" />
-                {activeList.name}
-              </h2>
-              {activeList.description && (
-                <p className="text-xs text-slate-400 mt-1 max-w-xl italic">
-                  {activeList.description}
-                </p>
-              )}
-            </div>
+          {/* Header Banner */}
+          <div className="relative w-full h-48 md:h-64 rounded-2xl overflow-hidden shadow-2xl bg-slate-950">
+            {/* Banner Image */}
+            {activeList.banner_url || activeList.thumbnail_url ? (
+              <img 
+                src={activeList.banner_url || activeList.thumbnail_url} 
+                alt="" 
+                className="w-full h-full object-cover opacity-95" 
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-slate-900 to-indigo-950/20 opacity-85" />
+            )}
+            
+            {/* Bottom Fade Mask (Faded in below) */}
+            <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
+            
+            {/* Content overlay */}
+            <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div>
+                <button 
+                  onClick={() => { setActiveListId(null); setError(''); }}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-400 hover:text-violet-300 transition-colors mb-2.5 w-max cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Back to Custom Lists
+                </button>
+                <h2 className="text-xl md:text-3xl font-black text-white drop-shadow-md flex items-center gap-2">
+                  {activeList.name}
+                </h2>
+                {activeList.description && (
+                  <p className="text-xs text-slate-350 mt-1 max-w-2xl drop-shadow-sm italic font-medium">
+                    {activeList.description}
+                  </p>
+                )}
+              </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleDeleteList(activeList.id)}
-                className="inline-flex items-center gap-1.5 bg-rose-950/30 hover:bg-rose-950/50 border border-rose-900/30 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete List
-              </button>
+              <div className="flex items-center gap-3 self-start md:self-end">
+                <button
+                  onClick={handleOpenEditModal}
+                  className="p-2.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/45 text-slate-350 hover:text-white rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center"
+                  title="List Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Add item control bar */}
-          <div className="bg-slate-900/20 border border-slate-850 p-4 rounded-2xl flex flex-col sm:flex-row items-center gap-3 max-w-2xl">
-            <div className="flex-1 w-full">
-              <select
-                value={selectedItemId}
-                onChange={(e) => setSelectedItemId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:outline-none focus:border-violet-500"
-              >
-                <option value="">-- Choose logged {getTypeLabel().toLowerCase()} to add --</option>
-                {candidateItems.map(item => (
-                  <option key={item.id} value={item.id}>
-                    {item.title} ({item.release_year || 'N/A'})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={handleAddItem}
-              disabled={!selectedItemId}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-violet-850 disabled:to-indigo-900 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all cursor-pointer shadow-md"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Add to List
-            </button>
-          </div>
 
-          {/* Items in this list */}
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-              Items in this List ({getListItems(activeList.item_ids).length})
+          {/* Controls Bar (Search, Fade Watched, Filter/Sort) */}
+          <div className="flex items-center justify-between gap-4 mt-6 mb-4 pb-2 border-b border-slate-900">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Items in this List ({sortedListItems.length})
             </h3>
+            
+            <div className="flex items-center gap-2">
+              {/* Search input inside list */}
+              <input
+                type="text"
+                placeholder="Search in list..."
+                value={listSearchQuery}
+                onChange={(e) => setListSearchQuery(e.target.value)}
+                className="bg-slate-950 border border-slate-855 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-550 w-32 sm:w-48 transition-colors"
+              />
 
-            {getListItems(activeList.item_ids).length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {getListItems(activeList.item_ids).map(item => (
-                  <div 
-                    key={item.id}
-                    className="group relative bg-slate-900/30 border border-slate-800 hover:border-slate-700/50 rounded-xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full"
-                  >
-                    <div 
-                      className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                      onClick={() => onItemClick && onItemClick(item)}
-                    >
-                      <img
-                        src={getPosterUrl(item.poster_path)}
-                        alt={item.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                      
-                      {/* Hover Overlay with delete button */}
-                      <div className="absolute inset-0 bg-slate-950/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-3.5">
-                        <div className="text-center pt-8">
-                          <h4 className="font-bold text-white text-xs line-clamp-3">{item.title}</h4>
-                          <span className="text-[10px] text-slate-400 block mt-1">{item.release_year || 'N/A'}</span>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}
-                          className="w-full bg-rose-950/50 hover:bg-rose-950/80 border border-rose-900/30 hover:border-rose-700/50 text-rose-300 py-1.5 rounded-lg text-[10px] font-bold tracking-wide transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              {/* Fade Watched Toggle Button */}
+              <button
+                onClick={() => setFadeWatched(!fadeWatched)}
+                className={`flex items-center justify-center w-8 h-8 border text-xs font-semibold cursor-pointer transition-all ${
+                  fadeWatched
+                    ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                }`}
+                title={fadeWatched ? "Show Watched Normally" : "Fade Watched"}
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Filter / Sort Button */}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setShowListFilterDropdown(!showListFilterDropdown)}
+                  className={`flex items-center justify-center w-8 h-8 border text-xs font-semibold cursor-pointer transition-all ${
+                    showListFilterDropdown
+                      ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                  }`}
+                  title="Sort List"
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                </button>
+
+                {showListFilterDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-none p-3 shadow-xl z-30 space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Sort By
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-850 rounded-none px-2 py-1">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                        <select
+                          value={listSortBy}
+                          onChange={(e) => { setListSortBy(e.target.value); setShowListFilterDropdown(false); }}
+                          className="bg-transparent border-none text-xs text-slate-300 focus:outline-none cursor-pointer w-full pr-1"
                         >
-                          <X className="w-3.5 h-3.5" />
-                          Remove from List
-                        </button>
+                          <option value="newest_added" className="bg-slate-950 text-slate-300">Newest Added</option>
+                          <option value="release_year" className="bg-slate-950 text-slate-300">Release Year</option>
+                          <option value="vote_average" className="bg-slate-950 text-slate-300">IMDb Rating</option>
+                          <option value="popularity" className="bg-slate-950 text-slate-300">Popularity</option>
+                          <option value="title" className="bg-slate-950 text-slate-300">Title (A-Z)</option>
+                        </select>
                       </div>
                     </div>
-
-                    <div className="p-3 flex-grow flex flex-col justify-between">
-                      <h4 className="font-semibold text-xs text-slate-200 line-clamp-1 group-hover:text-white transition-colors">
-                        {item.title}
-                      </h4>
-                    </div>
                   </div>
-                ))}
+                )}
               </div>
+            </div>
+          </div>
+
+          <div>
+            {rawListItems.length > 0 ? (
+              sortedListItems.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                  {sortedListItems.map(item => {
+                    const isWatched = item.status === 'completed'
+                    return (
+                      <div 
+                        key={item.id}
+                        className={`group relative bg-slate-900/30 border border-slate-800 hover:border-slate-700/50 rounded-xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full ${
+                          fadeWatched && isWatched ? 'opacity-35 grayscale scale-95 hover:opacity-90 hover:grayscale-0 hover:scale-100' : ''
+                        }`}
+                      >
+                        <div 
+                          className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
+                          onClick={() => onItemClick && onItemClick(item)}
+                        >
+                          <img
+                            src={getPosterUrl(item.poster_path)}
+                            alt={item.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                        </div>
+
+                        <div className="p-3 flex-grow flex flex-col justify-between">
+                          <h4 className="font-semibold text-xs text-slate-200 line-clamp-1 group-hover:text-white transition-colors">
+                            {item.title}
+                          </h4>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-16 text-slate-500">
+                  No items matched your search query.
+                </div>
+              )
             ) : (
               <div className="text-center py-16 border border-dashed border-slate-850 rounded-2xl max-w-sm mx-auto">
                 <FolderOpen className="w-10 h-10 text-slate-700 mx-auto mb-2" />
                 <h4 className="text-slate-400 font-bold text-xs">This list is empty</h4>
-                <p className="text-[11px] text-slate-500 mt-0.5">Choose an item from the log selector above to populate it.</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Add items using your watchlist or the explorer view.</p>
               </div>
             )}
           </div>
@@ -353,77 +850,43 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             {/* Create New List Box */}
             <div 
               onClick={() => setShowCreateModal(true)}
-              className="group border-2 border-dashed border-slate-800 hover:border-violet-600/40 bg-slate-900/10 hover:bg-violet-950/5 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 min-h-[180px]"
+              className="group border-2 border-dashed border-slate-800 hover:border-violet-600/40 bg-slate-900/10 hover:bg-violet-950/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 aspect-[19/9]"
             >
-              <div className="w-10 h-10 rounded-full bg-slate-850 group-hover:bg-violet-950 border border-slate-800 group-hover:border-violet-800/40 flex items-center justify-center text-slate-400 group-hover:text-violet-400 mb-3 transition-colors">
-                <Plus className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-slate-300 group-hover:text-white transition-colors">
+              <Plus className="w-6 h-6 text-slate-500 group-hover:text-violet-400 mb-1 transition-colors" />
+              <span className="font-bold text-xs text-slate-400 group-hover:text-white transition-colors">
                 Create Custom List
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-[200px]">
-                Create a custom category for your tracked {getTypeLabelPlural().toLowerCase()}.
-              </p>
+              </span>
             </div>
 
             {/* Custom Lists Cards */}
             {lists.map(list => {
               const mappedItems = getListItems(list.item_ids)
+              const fakeLikes = Math.round((list.name.length * 3) % 45) + 5
               return (
                 <div 
                   key={list.id}
                   onClick={() => setActiveListId(list.id)}
-                  className="group bg-slate-900/30 border border-slate-800 hover:border-slate-700/50 rounded-2xl p-5 flex flex-col justify-between cursor-pointer transition-all duration-350 hover:shadow-lg relative overflow-hidden min-h-[180px]"
+                  className="group flex flex-col cursor-pointer transition-all duration-300"
                 >
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-violet-600/5 rounded-full blur-2xl -z-10 group-hover:bg-violet-600/10 transition-colors" />
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-3.5">
-                      <div className="p-2 rounded-xl bg-violet-650/10 border border-violet-800/20 text-violet-400">
-                        <Folder className="w-4 h-4" />
+                  {/* Landscape Image */}
+                  <div className="aspect-[19/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-850 shadow-md relative">
+                    {list.thumbnail_url || list.banner_url ? (
+                      <img 
+                        src={list.thumbnail_url || list.banner_url} 
+                        alt="" 
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" 
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-slate-900 to-indigo-950/20 flex items-center justify-center border border-slate-850/30 group-hover:from-violet-950/30 group-hover:to-indigo-950/30 transition-all duration-500">
+                        <Folder className="w-8 h-8 text-slate-650 group-hover:text-violet-500/70 transition-colors" />
                       </div>
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-850 px-2 py-0.5 rounded border border-slate-800/80">
-                        {mappedItems.length} {mappedItems.length === 1 ? getTypeLabel() : getTypeLabelPlural()}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-base text-slate-200 line-clamp-1 group-hover:text-white transition-colors">
-                      {list.name}
-                    </h3>
-                    
-                    {list.description && (
-                      <p className="text-xs text-slate-400 line-clamp-2 mt-1.5 italic">
-                        {list.description}
-                      </p>
                     )}
                   </div>
 
-                  {/* Collage overlay of posters in the list */}
-                  <div className="flex items-center gap-1 mt-4 pt-3 border-t border-slate-850/60">
-                    {mappedItems.slice(0, 3).map((item, idx) => (
-                      <div 
-                        key={item.id} 
-                        className="w-7 h-10 rounded overflow-hidden bg-slate-950 border border-slate-800 shadow-md transform transition-transform group-hover:translate-y-[-2px]"
-                        style={{ zIndex: 10 - idx, marginLeft: idx > 0 ? '-10px' : '0px' }}
-                      >
-                        <img 
-                          src={getPosterUrl(item.poster_path)} 
-                          alt="" 
-                          className="w-full h-full object-cover" 
-                        />
-                      </div>
-                    ))}
-                    {mappedItems.length > 3 && (
-                      <span className="text-[10px] text-slate-500 font-bold ml-1.5">
-                        +{mappedItems.length - 3} more
-                      </span>
-                    )}
-                    {mappedItems.length === 0 && (
-                      <span className="text-[10px] text-slate-500 italic">
-                        Empty list
-                      </span>
-                    )}
-                  </div>
+                  {/* Title */}
+                  <h3 className="font-bold text-[14px] text-slate-200 line-clamp-1 mt-2.5 group-hover:text-white transition-colors">
+                    {list.name}
+                  </h3>
                 </div>
               )
             })}
@@ -453,48 +916,256 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             </p>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  List Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  placeholder="e.g. My Favorite Movies"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
-                />
-              </div>
+              {importing ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-400">
+                  <div className="w-10 h-10 border-2 border-violet-500/20 border-t-violet-500 rounded-full animate-spin" />
+                  <span className="text-xs font-semibold text-slate-300 animate-pulse text-center">
+                    {importStatus}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {error && (
+                    <div className="text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl">
+                      {error}
+                    </div>
+                  )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  Description (Optional)
-                </label>
-                <textarea
-                  rows="3"
-                  value={newListDesc}
-                  onChange={(e) => setNewListDesc(e.target.value)}
-                  placeholder="Describe what's in this list..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500 resize-none"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      List Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={importing}
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      placeholder="e.g. My Favorite Movies"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Description (Optional)
+                    </label>
+                    <textarea
+                      rows="3"
+                      disabled={importing}
+                      value={newListDesc}
+                      onChange={(e) => setNewListDesc(e.target.value)}
+                      placeholder="Describe what's in this list..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Poster/Thumbnail Image Link (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      disabled={importing}
+                      value={newThumbnailUrl}
+                      onChange={(e) => setNewThumbnailUrl(e.target.value)}
+                      placeholder="e.g. https://example.com/cover.jpg (19:9 ratio)"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Banner Image Link (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      disabled={importing}
+                      value={newBannerUrl}
+                      onChange={(e) => setNewBannerUrl(e.target.value)}
+                      placeholder="e.g. https://example.com/banner.jpg"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+
+                  {typeFilter === 'movie' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <span>Import from Letterboxd URL (Optional)</span>
+                        <span className="text-[10px] text-violet-400 font-bold tracking-normal normal-case">public lists only</span>
+                      </label>
+                      <input
+                        type="url"
+                        disabled={importing}
+                        value={letterboxdUrl}
+                        onChange={(e) => setLetterboxdUrl(e.target.value)}
+                        placeholder="e.g. https://letterboxd.com/username/list/list-name/"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
                 type="button"
-                onClick={() => { setShowCreateModal(false); setNewListName(''); setNewListDesc(''); }}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+                disabled={importing}
+                onClick={() => { setShowCreateModal(false); setNewListName(''); setNewListDesc(''); setLetterboxdUrl(''); setError(''); }}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                disabled={importing || !newListName.trim()}
+                className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                Create List
+                {importing ? 'Importing...' : 'Create List'}
               </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal for editing a list */}
+      {showEditModal && activeList && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <form onSubmit={handleSaveEditList} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[85vh] md:max-h-[90vh] flex flex-col shadow-2xl relative">
+            <h3 className="text-xl font-bold text-white mb-1">
+              List Settings
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Update list details, cover photo, banner image, or delete this list.
+            </p>
+
+            <div className="space-y-4 overflow-y-auto pr-1 flex-grow scrollbar-thin mb-2">
+              {importing ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-400">
+                  <div className="w-10 h-10 border-2 border-violet-500/20 border-t-violet-500 rounded-full animate-spin" />
+                  <span className="text-xs font-semibold text-slate-300 animate-pulse text-center">
+                    {importStatus}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {error && (
+                    <div className="text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl">
+                      {error}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      List Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={importing}
+                      value={editListName}
+                      onChange={(e) => setEditListName(e.target.value)}
+                      placeholder="e.g. My Favorite Movies"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Description (Optional)
+                    </label>
+                    <textarea
+                      rows="3"
+                      disabled={importing}
+                      value={editListDesc}
+                      onChange={(e) => setEditListDesc(e.target.value)}
+                      placeholder="Describe what's in this list..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Poster/Thumbnail Image Link (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      disabled={importing}
+                      value={editThumbnailUrl}
+                      onChange={(e) => setEditThumbnailUrl(e.target.value)}
+                      placeholder="e.g. https://example.com/cover.jpg (19:9 ratio)"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                      Banner Image Link (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      disabled={importing}
+                      value={editBannerUrl}
+                      onChange={(e) => setEditBannerUrl(e.target.value)}
+                      placeholder="e.g. https://example.com/banner.jpg"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+
+                  {typeFilter === 'movie' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <span>Import & Merge from Letterboxd (Optional)</span>
+                        <span className="text-[10px] text-violet-400 font-bold tracking-normal normal-case">public lists only</span>
+                      </label>
+                      <input
+                        type="url"
+                        disabled={importing}
+                        value={editLetterboxdUrl}
+                        onChange={(e) => setEditLetterboxdUrl(e.target.value)}
+                        placeholder="e.g. https://letterboxd.com/username/list/list-name/"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex flex-col gap-3 mt-6">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={importing}
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-350 font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={importing || !editListName.trim()}
+                  className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center"
+                >
+                  {importing ? 'Importing...' : 'Save Changes'}
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-slate-850 mt-1 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    handleDeleteList(activeList.id);
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-1.5 bg-rose-950/40 hover:bg-rose-950/70 border border-rose-900/35 hover:border-rose-700/50 text-rose-450 hover:text-rose-350 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-md"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete List
+                </button>
+              </div>
             </div>
           </form>
         </div>

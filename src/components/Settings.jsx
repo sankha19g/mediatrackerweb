@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { Key, Database, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { isTMDBConfigured } from '../lib/tmdb'
+import { isOMDBConfigured } from '../lib/omdb'
 
 export default function Settings({ onConfigChange }) {
   const [tmdbApiKey, setTmdbApiKey] = useState('')
+  const [omdbApiKey, setOmdbApiKey] = useState('')
   const [status, setStatus] = useState({ type: '', message: '' })
   
   useEffect(() => {
     setTmdbApiKey(localStorage.getItem('tmdb_api_key') || '')
+    setOmdbApiKey(localStorage.getItem('omdb_api_key') || '')
   }, [])
 
   const handleSave = (e) => {
@@ -18,6 +21,12 @@ export default function Settings({ onConfigChange }) {
         localStorage.setItem('tmdb_api_key', tmdbApiKey.trim())
       } else {
         localStorage.removeItem('tmdb_api_key')
+      }
+      
+      if (omdbApiKey) {
+        localStorage.setItem('omdb_api_key', omdbApiKey.trim())
+      } else {
+        localStorage.removeItem('omdb_api_key')
       }
       
       setStatus({
@@ -43,7 +52,9 @@ export default function Settings({ onConfigChange }) {
 
   const handleClear = () => {
     localStorage.removeItem('tmdb_api_key')
+    localStorage.removeItem('omdb_api_key')
     setTmdbApiKey('')
+    setOmdbApiKey('')
     
     setStatus({
       type: 'success',
@@ -155,6 +166,22 @@ export default function Settings({ onConfigChange }) {
           />
           <p className="text-xs text-slate-500 mt-1">
             Don't have a key? Register on <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline">TMDB</a> to get a free API Key.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            OMDb API Key (Optional)
+          </label>
+          <input
+            type="password"
+            value={omdbApiKey}
+            onChange={(e) => setOmdbApiKey(e.target.value)}
+            placeholder="Custom OMDb Key (Default fallback active)"
+            className="w-full bg-slate-950 border border-slate-800 rounded-none px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Used for fetching IMDb, Rotten Tomatoes & Metacritic scores. Get a free key on <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline">OMDb API</a>.
           </p>
         </div>
 

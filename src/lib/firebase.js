@@ -124,6 +124,8 @@ export const addFirebaseItem = async (userId, item) => {
     status: item.status || 'completed',
     country: item.country || '',
     original_language: item.original_language || '',
+    vote_average: item.vote_average !== undefined ? Number(item.vote_average) : 0,
+    popularity: item.popularity !== undefined ? Number(item.popularity) : 0,
     watched_at: item.watched_at || new Date().toISOString(),
     created_at: item.created_at || new Date().toISOString()
   }
@@ -155,6 +157,8 @@ export const migrateLocalItemsToFirebase = async (userId, localItems) => {
       status: item.status || 'completed',
       country: item.country || '',
       original_language: item.original_language || '',
+      vote_average: item.vote_average !== undefined ? Number(item.vote_average) : 0,
+      popularity: item.popularity !== undefined ? Number(item.popularity) : 0,
       watched_at: item.watched_at || new Date().toISOString(),
       created_at: item.created_at || new Date().toISOString()
     }
@@ -206,7 +210,7 @@ export const loadFirebaseLists = async (userId, type) => {
   return lists.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
-export const addFirebaseList = async (userId, name, description, type) => {
+export const addFirebaseList = async (userId, name, description, type, thumbnailUrl = '', bannerUrl = '') => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
   const listData = {
@@ -214,6 +218,8 @@ export const addFirebaseList = async (userId, name, description, type) => {
     name: name || '',
     description: description || '',
     type: type || 'movie',
+    thumbnail_url: thumbnailUrl || '',
+    banner_url: bannerUrl || '',
     item_ids: [],
     created_at: new Date().toISOString()
   }
@@ -226,6 +232,21 @@ export const updateFirebaseListItems = async (listId, itemIds) => {
   if (!dbInstance) throw new Error("Firebase database not initialized")
   const docRef = doc(dbInstance, 'custom_lists', listId)
   await updateDoc(docRef, { item_ids: itemIds })
+}
+
+export const updateFirebaseList = async (listId, updates) => {
+  const dbInstance = getFirebaseDb()
+  if (!dbInstance) throw new Error("Firebase database not initialized")
+  const docRef = doc(dbInstance, 'custom_lists', listId)
+  
+  const firestoreUpdates = {}
+  Object.keys(updates).forEach(key => {
+    if (updates[key] !== undefined && key !== 'id' && key !== 'user_id') {
+      firestoreUpdates[key] = updates[key]
+    }
+  })
+  
+  await updateDoc(docRef, firestoreUpdates)
 }
 
 export const deleteFirebaseList = async (listId) => {
@@ -264,6 +285,8 @@ export const batchAddFirebaseItems = async (userId, itemsList) => {
         status: item.status || 'completed',
         country: item.country || '',
         original_language: item.original_language || '',
+        vote_average: item.vote_average !== undefined ? Number(item.vote_average) : 0,
+        popularity: item.popularity !== undefined ? Number(item.popularity) : 0,
         watched_at: item.watched_at || new Date().toISOString(),
         created_at: item.created_at || new Date().toISOString()
       }

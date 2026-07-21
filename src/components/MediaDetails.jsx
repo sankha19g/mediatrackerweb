@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLink, Play, Check, ChevronDown, ChevronUp, Sparkles, ChevronLeft, ChevronRight, Download, Plus, CheckSquare, Eye, Tag, X, Bookmark, Edit } from 'lucide-react'
+import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLink, Play, Check, ChevronDown, ChevronUp, Sparkles, ChevronLeft, ChevronRight, Download, Plus, CheckSquare, Eye, Tag, X, Bookmark, Edit, Award, DollarSign } from 'lucide-react'
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
+import { fetchOMDBData } from '../lib/omdb'
 
-const CastCarousel = ({ cast }) => {
+const CastCarousel = ({ cast, navigate }) => {
   const scrollRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(true)
@@ -49,7 +50,7 @@ const CastCarousel = ({ cast }) => {
     <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-base font-bold text-white tracking-wide">Top Cast</h4>
-        
+
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -65,11 +66,10 @@ const CastCarousel = ({ cast }) => {
                 type="button"
                 onClick={() => scroll('left')}
                 disabled={!canScrollLeft}
-                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
-                  canScrollLeft
-                    ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
-                    : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
-                }`}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${canScrollLeft
+                  ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                  : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                  }`}
                 title="Scroll Left"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -78,11 +78,10 @@ const CastCarousel = ({ cast }) => {
                 type="button"
                 onClick={() => scroll('right')}
                 disabled={!canScrollRight}
-                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
-                  canScrollRight
-                    ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
-                    : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
-                }`}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${canScrollRight
+                  ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                  : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                  }`}
                 title="Scroll Right"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -98,7 +97,8 @@ const CastCarousel = ({ cast }) => {
           {cast.map(actor => (
             <div
               key={actor.id}
-              className="bg-[#101424] rounded-xl overflow-hidden flex flex-col shadow-md group/actor"
+              onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: actor.id, name: actor.name } } })}
+              className="bg-[#101424] border border-slate-850 hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md group/actor cursor-pointer transition-all duration-300"
             >
               <div className="aspect-[3/4] w-full bg-slate-950 relative overflow-hidden">
                 {actor.profile_path ? (
@@ -131,7 +131,7 @@ const CastCarousel = ({ cast }) => {
           {canScrollLeft && (
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#060810] to-transparent z-10" />
           )}
-          
+
           {/* Right Side Fade Overlay */}
           {canScrollRight && (
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#060810] to-transparent z-10" />
@@ -146,7 +146,8 @@ const CastCarousel = ({ cast }) => {
             {displayedCast.map(actor => (
               <div
                 key={actor.id}
-                className="w-28 sm:w-36 flex-shrink-0 bg-[#101424] rounded-xl overflow-hidden flex flex-col shadow-md transition-transform hover:-translate-y-0.5 group/actor"
+                onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: actor.id, name: actor.name } } })}
+                className="w-28 sm:w-36 flex-shrink-0 bg-[#101424]  hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md transition-all duration-300 hover:-translate-y-0.5 group/actor cursor-pointer"
               >
                 <div className="aspect-[3/4] w-full bg-slate-950 relative overflow-hidden">
                   {actor.profile_path ? (
@@ -182,7 +183,7 @@ const CastCarousel = ({ cast }) => {
 const getProviderUrl = (providerName = '', mainWatchLink = '', title = '') => {
   const name = providerName.toLowerCase()
   const encodedTitle = encodeURIComponent(title)
-  
+
   if (name.includes('netflix')) {
     return `https://www.netflix.com/search?q=${encodedTitle}`
   }
@@ -293,7 +294,7 @@ const SeasonCard = ({ season, item, seasonsWatched, toggleSeasonWatched }) => {
 
   return (
     <div className="flex flex-col bg-slate-900 border border-slate-800 rounded-xl overflow-hidden transition-colors hover:border-slate-700">
-      <div 
+      <div
         className="flex items-center gap-4 p-3 cursor-pointer group"
         onClick={handleExpand}
       >
@@ -317,50 +318,49 @@ const SeasonCard = ({ season, item, seasonsWatched, toggleSeasonWatched }) => {
               e.stopPropagation();
               toggleSeasonWatched(season.season_number)
             }}
-            className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all cursor-pointer z-10 ${
-              isWatched 
-                ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]' 
-                : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500'
-            }`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all cursor-pointer z-10 ${isWatched
+              ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+              : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500'
+              }`}
             title={isWatched ? "Mark Unwatched" : "Mark Watched"}
           >
             <Check className={`w-4 h-4 ${isWatched ? 'opacity-100' : 'opacity-50'}`} />
           </button>
         )}
       </div>
-      
+
       {/* Expanded Episodes List */}
       {expanded && (
         <div className="border-t border-slate-800 bg-slate-950/50 p-4 max-h-96 overflow-y-auto">
           {loading ? (
-             <div className="text-center text-slate-500 text-xs py-4 flex items-center justify-center gap-2">
-               <span className="w-4 h-4 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-               Loading episodes...
-             </div>
+            <div className="text-center text-slate-500 text-xs py-4 flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+              Loading episodes...
+            </div>
           ) : (
-             <div className="flex flex-col gap-4">
-               {episodes.length === 0 && <p className="text-xs text-slate-500">No episodes found.</p>}
-               {episodes.map(ep => (
-                 <div key={ep.id} className="flex gap-4 items-start border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
-                   <div className="w-28 sm:w-32 aspect-video bg-slate-800 rounded-lg flex-shrink-0 overflow-hidden border border-slate-700/50">
-                     {ep.still_path ? (
-                       <img src={`https://image.tmdb.org/t/p/w185${ep.still_path}`} className="w-full h-full object-cover" />
-                     ) : (
-                       <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs">No Img</div>
-                     )}
-                   </div>
-                   <div className="flex-1 min-w-0">
-                     <h5 className="text-sm font-bold text-slate-200 truncate flex items-center gap-2">
-                       <span className="text-violet-400">E{ep.episode_number}</span> 
-                       {ep.name}
-                     </h5>
-                     <p className="text-xs text-slate-400 line-clamp-3 mt-1.5 leading-relaxed">
-                       {ep.overview || "No description available."}
-                     </p>
-                   </div>
-                 </div>
-               ))}
-             </div>
+            <div className="flex flex-col gap-4">
+              {episodes.length === 0 && <p className="text-xs text-slate-500">No episodes found.</p>}
+              {episodes.map(ep => (
+                <div key={ep.id} className="flex gap-4 items-start border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
+                  <div className="w-28 sm:w-32 aspect-video bg-slate-800 rounded-lg flex-shrink-0 overflow-hidden border border-slate-700/50">
+                    {ep.still_path ? (
+                      <img src={`https://image.tmdb.org/t/p/w185${ep.still_path}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs">No Img</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h5 className="text-sm font-bold text-slate-200 truncate flex items-center gap-2">
+                      <span className="text-violet-400">E{ep.episode_number}</span>
+                      {ep.name}
+                    </h5>
+                    <p className="text-xs text-slate-400 line-clamp-3 mt-1.5 leading-relaxed">
+                      {ep.overview || "No description available."}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -374,17 +374,20 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const location = useLocation()
 
   const [addStatus, setAddStatus] = useState('planned')
+  const [addReview, setAddReview] = useState('')
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
-  
+  const [showImageModal, setShowImageModal] = useState(false)
+  const [imageModalType, setImageModalType] = useState('posters')
+
   let item = items.find(i => i.id === id)
   if (!item && location.state?.addedItem && location.state.addedItem.id === id) {
     item = location.state.addedItem
   }
-  
+
   // If it's an explore route, we construct a stub item
   if (!item && tmdb_id && type) {
     // Check if it's actually in our items anyway
-    const existing = items.find(i => i.tmdb_id === tmdb_id && i.type === type)
+    const existing = items.find(i => i.tmdb_id && i.tmdb_id.toString() === tmdb_id.toString() && i.type === type)
     if (existing) {
       item = existing
     } else {
@@ -394,6 +397,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
   const [details, setDetails] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [omdbData, setOmdbData] = useState(null)
+  const [loadingOmdb, setLoadingOmdb] = useState(false)
   const [currentSeasonDetails, setCurrentSeasonDetails] = useState(null)
   const [isTrailerOpen, setIsTrailerOpen] = useState(false)
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
@@ -411,7 +416,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   // Calculate TV season list from details
   const allSeasons = details?.seasons?.filter(s => s.season_number > 0) || []
   const seasonsList = allSeasons.length > 0 ? allSeasons : [{ season_number: 1, episode_count: 24, name: 'Season 1' }]
-  
+
   // Find current season's max episodes
   const currentSeasonObj = seasonsList.find(s => s.season_number === selectedSeason)
   const currentSeasonMaxEpisodes = currentSeasonObj ? currentSeasonObj.episode_count : 24
@@ -534,9 +539,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       if (item && item.tmdb_id && item.type !== 'game' && (!details || details.id?.toString() !== item.tmdb_id.toString())) {
         setLoading(true)
         try {
-          // Append credits, release_dates (movies), content_ratings (tv), watch/providers, videos, external_ids
+          // Append credits, release_dates (movies), content_ratings (tv), watch/providers, videos, external_ids, images
           const data = await fetchTMDB(`/${item.type}/${item.tmdb_id}`, {
-            append_to_response: 'credits,release_dates,content_ratings,watch/providers,videos,external_ids'
+            append_to_response: 'credits,release_dates,content_ratings,watch/providers,videos,external_ids,images'
           })
           setDetails(data)
         } catch (error) {
@@ -550,6 +555,31 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   }, [item?.tmdb_id, item?.type, details])
 
   useEffect(() => {
+    const loadOmdb = async () => {
+      const targetImdbId = details?.external_ids?.imdb_id || details?.imdb_id
+      const targetTitle = item?.title || details?.title || details?.name
+      const targetYear = item?.release_year || (details?.release_date || details?.first_air_date || '').split('-')[0]
+      const targetType = item?.type || type
+
+      if (targetImdbId || targetTitle) {
+        setLoadingOmdb(true)
+        const omdbRes = await fetchOMDBData({
+          imdbId: targetImdbId,
+          title: targetTitle,
+          year: targetYear,
+          type: targetType
+        })
+        setOmdbData(omdbRes)
+        setLoadingOmdb(false)
+      }
+    }
+
+    if (details || item) {
+      loadOmdb()
+    }
+  }, [details?.external_ids?.imdb_id, details?.imdb_id, details?.title, details?.name, item?.title, item?.release_year, item?.type, type])
+
+  useEffect(() => {
     const allSeasons = details?.seasons?.filter(s => s.season_number > 0) || []
     const seasonsWatched = item?.seasons_watched || []
 
@@ -560,12 +590,12 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
     if (currentSeason && item && !item.isExplore) {
       if (currentSeasonDetails?.season_number === currentSeason.season_number) return;
-      
+
       const fetchSeason = async () => {
         try {
           const data = await fetchTMDB(`/tv/${item.tmdb_id}/season/${currentSeason.season_number}`)
           setCurrentSeasonDetails({ ...data, season_number: currentSeason.season_number })
-        } catch(e) {
+        } catch (e) {
           console.error(e)
         }
       }
@@ -589,7 +619,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const handleAddItemFromDetails = async () => {
     if (!onAddItem) return
     const releaseYearStr = releaseYear || ''
-    
+    const itemType = item?.type || type
+
     // Country detection logic
     const getCountryCode = () => {
       if (details?.origin_country && Array.isArray(details.origin_country) && details.origin_country.length > 0) {
@@ -603,14 +634,17 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
     const newItem = {
       title: title,
-      type: type,
-      tmdb_id: tmdbId.toString(),
+      type: itemType,
+      tmdb_id: tmdbId ? tmdbId.toString() : '',
       poster_path: posterPath,
       release_year: releaseYearStr,
       status: addStatus,
+      review: addReview.trim(),
       country: getCountryCode(),
       original_language: details?.original_language || 'en',
-      ...(type === 'tv' && {
+      vote_average: details?.vote_average || 0,
+      popularity: details?.popularity || 0,
+      ...(itemType === 'tv' && {
         season_number: selectedSeason,
         season_progress: addStatus === 'watching' ? { [selectedSeason]: 1 } : { [selectedSeason]: 0 }
       })
@@ -701,29 +735,29 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   }
 
   // Derived TMDB Data
-  const backdropUrl = details?.backdrop_path 
-    ? `https://image.tmdb.org/t/p/original${details.backdrop_path}` 
+  const backdropUrl = details?.backdrop_path
+    ? `https://image.tmdb.org/t/p/original${details.backdrop_path}`
     : null;
-    
+
   const synopsis = details?.overview || 'No synopsis available.'
   const runtime = details?.runtime || (details?.episode_run_time ? details.episode_run_time[0] : null)
-  
+
   // Find Director, Writer, Country & Formatted Date
   const crew = details?.credits?.crew || []
-  const director = crew.find(member => member.job === 'Director')?.name || 'Unknown'
-  const directorName = crew.find(member => member.job === 'Director')?.name || details?.created_by?.map(c => c.name).join(', ') || 'Unknown'
+  const directorObj = crew.find(member => member.job === 'Director') || details?.created_by?.[0]
+  const directorName = directorObj ? directorObj.name : 'Unknown'
   const writerName = crew.find(member => member.job === 'Writer' || member.job === 'Screenplay' || member.department === 'Writing')?.name || 'Unknown'
   const productionCountry = details?.production_countries?.[0]?.name || details?.origin_country?.[0] || 'US'
-  
+
   const releaseDateRaw = details?.release_date || details?.first_air_date || item?.created_at
   const releaseDateFormatted = releaseDateRaw ? new Date(releaseDateRaw).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown'
-  
+
   // External IDs & Links
   const imdbId = details?.external_ids?.imdb_id || details?.imdb_id
   const homepage = details?.homepage
   const wikidataId = details?.external_ids?.wikidata_id
   const wikipediaUrl = wikidataId ? `https://www.wikidata.org/wiki/${wikidataId}` : null
-  
+
   // Cast (All cast members)
   const cast = (details?.credits?.cast || []).filter(actor => actor.profile_path || actor.name)
 
@@ -733,10 +767,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
   const sortedParts = collectionDetails?.parts
     ? [...collectionDetails.parts].sort((a, b) => {
-        const dateA = a.release_date || '9999-12-31'
-        const dateB = b.release_date || '9999-12-31'
-        return dateA.localeCompare(dateB)
-      })
+      const dateA = a.release_date || '9999-12-31'
+      const dateB = b.release_date || '9999-12-31'
+      return dateA.localeCompare(dateB)
+    })
     : []
 
   // Trailer
@@ -770,8 +804,170 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     } else {
       return acc
     }
-  }, [])  // TV Seasons from TMDB details
-  const seasons = details?.seasons?.filter(s => s.season_number > 0) || []
+  }, [])
+
+  // TV Seasons from TMDB details
+  const seasons = details?.seasons?.filter(s => s.season_number > 0) || []  // Data Array Config for RATINGS & SCORES
+  const ratingCards = [
+    {
+      id: 'imdb',
+      label: 'IMDb Rating',
+      sublabel: omdbData?.imdbVotes ? `${omdbData.imdbVotes} votes` : 'IMDb Rating',
+      score: omdbData?.imdbRating || (details?.vote_average ? details.vote_average.toFixed(1) : 'N/A'),
+      maxScore: '/10',
+      url: (imdbId || omdbData?.imdbID)
+        ? `https://www.imdb.com/title/${imdbId || omdbData?.imdbID}`
+        : `https://www.imdb.com/find/?q=${encodeURIComponent(title)}`,
+      borderClass: 'border-[#f5c518]/25 hover:border-[#f5c518]/60',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg"
+          alt="IMDb"
+          className="w-9 h-9 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'tomatometer',
+      label: 'Tomatometer',
+      sublabel: 'Tomatometer',
+      score: omdbData?.rottenTomatoes || 'N/A',
+      maxScore: null,
+      url: `https://www.rottentomatoes.com/search?search=${encodeURIComponent(title)}`,
+      borderClass: 'border-rose-500/20 hover:border-rose-500/50',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg"
+          alt="Tomatometer"
+          className="w-9 h-9 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'audience',
+      label: 'Audience Score',
+      sublabel: 'Audience Score',
+      score: details?.vote_average ? `${Math.round(details.vote_average * 10)}%` : 'N/A',
+      maxScore: null,
+      url: tmdbId ? `https://www.themoviedb.org/${item.type || 'movie'}/${tmdbId}` : '#',
+      borderClass: 'border-amber-500/20 hover:border-amber-500/50',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/Rotten_Tomatoes_positive_audience.svg/960px-Rotten_Tomatoes_positive_audience.svg.png"
+          alt="Audience Score"
+          className="w-9 h-9 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'metacritic',
+      label: 'Metascore',
+      sublabel: 'Metascore',
+      score: omdbData?.metascore || 'N/A',
+      maxScore: omdbData?.metascore ? '/100' : null,
+      url: `https://www.metacritic.com/search/${encodeURIComponent(title)}`,
+      borderClass: 'border-emerald-500/20 hover:border-emerald-500/50',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/f/fe/Metascore.png"
+          alt="Metacritic"
+          className="w-9 h-9 object-contain flex-shrink-0"
+        />
+      )
+    }
+  ]
+
+  // Data Array Config for EXTERNAL LINKS
+  const externalLinksData = [
+    {
+      id: 'youtube',
+      label: 'YouTube Trailer',
+      show: true,
+      url: trailer?.key
+        ? `https://www.youtube.com/watch?v=${trailer.key}`
+        : `https://www.youtube.com/results?search_query=${encodeURIComponent(`${title} official trailer`)}`,
+      borderClass: 'border-red-500/30 hover:border-red-500',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png"
+          alt="YouTube"
+          className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'imdb',
+      label: 'IMDb Page',
+      show: !!(imdbId || omdbData?.imdbID),
+      url: `https://www.imdb.com/title/${imdbId || omdbData?.imdbID}`,
+      borderClass: 'border-[#f5c518]/30 hover:border-[#f5c518]',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/IMDB_Logo_2016.svg/960px-IMDB_Logo_2016.svg.png"
+          alt="IMDb"
+          className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'tmdb',
+      label: 'TMDB Page',
+      show: !!tmdbId,
+      url: `https://www.themoviedb.org/${item.type || 'movie'}/${tmdbId}`,
+      borderClass: 'border-sky-500/30 hover:border-sky-400',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Tmdb.new.logo.svg/960px-Tmdb.new.logo.svg.png"
+          alt="TMDB"
+          className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'letterboxd',
+      label: 'Letterboxd',
+      show: true,
+      url: (imdbId || omdbData?.imdbID)
+        ? `https://letterboxd.com/imdb/${imdbId || omdbData?.imdbID}`
+        : `https://letterboxd.com/search/${encodeURIComponent(title)}/`,
+      borderClass: 'border-orange-500/30 hover:border-orange-400',
+      badge: (
+        <img
+          src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQRpFZIm6Gp13p9WQ9TfharzuN7HS4J4Bo_dEs5Hp5uGg&s=10"
+          alt="Letterboxd"
+          className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'website',
+      label: 'Official Website',
+      show: !!homepage,
+      url: homepage || '#',
+      borderClass: 'border-violet-500/30 hover:border-violet-400',
+      badge: (
+        <img
+          src="https://png.pngtree.com/png-vector/20190319/ourmid/pngtree-vector-web-icon-png-image_847779.jpg"
+          alt="Website"
+          className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'wikidata',
+      label: 'Wikidata',
+      show: !!wikipediaUrl,
+      url: wikipediaUrl || '#',
+      borderClass: 'border-slate-700 hover:border-slate-500',
+      badge: (
+        <img
+          src="https://upload.wikimedia.org/wikipedia/en/thumb/8/80/Wikipedia-logo-v2.svg/250px-Wikipedia-logo-v2.svg.png"
+          alt="Wikidata"
+          className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    }
+  ]
   const totalEpisodes = seasons.reduce((sum, s) => sum + (s.episode_count || 0), 0)
 
   // All per-season items for this same show (across the watchlist)
@@ -809,8 +1005,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const rawProgressCount = getRawProgressCount()
 
   // Check if show as a whole or any representative item is completed
-  const rawCompleted = item.status === 'completed' || 
-                        (allShowItems.length > 0 && allShowItems.every(i => i.status === 'completed'))
+  const rawCompleted = item.status === 'completed' ||
+    (allShowItems.length > 0 && allShowItems.every(i => i.status === 'completed'))
 
   // Show is completed only if rawCompleted is true AND (progress hasn't been decremented below max episodes)
   const isShowCompleted = rawCompleted && (rawProgressCount === null || !currentSeason || rawProgressCount >= (currentSeason.episode_count || 1))
@@ -844,7 +1040,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   })()
 
   const myEpisodesFromWatching = (isShowCompleted || activeSeasonIsCompleted) ? 0 : currentEpisodesWatched
-  const myTotalEpisodesWatched = isShowCompleted 
+  const myTotalEpisodesWatched = isShowCompleted
     ? (totalEpisodes || myEpisodesFromCompleted)
     : (myEpisodesFromCompleted + myEpisodesFromWatching)
 
@@ -885,14 +1081,14 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       // Current season completed
       const prevSeasonsWatched = targetItem.seasons_watched || seasonsWatched || []
       const newSeasonsWatched = Array.from(new Set([...prevSeasonsWatched, seasonNumber]))
-      
+
       const nextSeasonNumber = seasonNumber + 1
       const nextSeasonExists = seasons.some(s => s.season_number === nextSeasonNumber)
 
       if (nextSeasonExists) {
         // Advance to next season
         const nextSeasonItem = allShowItems.find(i => i.season_number === nextSeasonNumber)
-        
+
         if (nextSeasonItem) {
           onUpdateItem(targetItem.id, {
             seasons_watched: newSeasonsWatched,
@@ -933,7 +1129,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         const prevSeasonItem = allShowItems.find(i => i.season_number === prevSeasonNumber)
         const targetCount = Math.max(0, prevMax - 1)
         const targetStatus = targetCount === 0 ? 'pending' : 'watching'
-        
+
         if (prevSeasonItem) {
           onUpdateItem(prevSeasonItem.id, {
             season_progress: { ...(prevSeasonItem.season_progress || {}), [prevSeasonNumber]: targetCount },
@@ -984,7 +1180,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     <div className="animate-fade-in pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* Back Navigation Header */}
       <div className="flex items-center justify-between mb-6">
-        <button 
+        <button
           onClick={() => navigate(-1)}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
         >
@@ -998,9 +1194,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         {/* Backdrop background image aligned right with smooth left-to-right & bottom fade gradients */}
         {backdropUrl && (
           <div className="absolute right-0 top-0 bottom-0 w-full md:w-3/4 lg:w-2/3 h-full z-0 overflow-hidden pointer-events-none">
-            <img 
-              src={backdropUrl} 
-              alt="Backdrop" 
+            <img
+              src={backdropUrl}
+              alt="Backdrop"
               className="w-full h-full object-cover object-center opacity-100"
             />
             {/* Left to Right Gradient Overlay */}
@@ -1014,9 +1210,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         <div className="relative z-10 p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
           {/* Poster */}
           <div className="w-36 sm:w-44 md:w-52 aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex-shrink-0 bg-slate-950">
-            <img 
-              src={getPosterUrl(posterPath)} 
-              alt={title} 
+            <img
+              src={getPosterUrl(posterPath)}
+              alt={title}
               className="w-full h-full object-cover"
             />
           </div>
@@ -1121,11 +1317,27 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 )}
 
                 <button
-                  onClick={() => setIsStatusModalOpen(true)}
-                  className="bg-[#101424] hover:bg-[#181e36] text-slate-200 border border-white/10 font-bold text-sm px-5 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                  onClick={() => {
+                    setAddStatus(item.status || 'planned')
+                    setAddReview(item.review || '')
+                    setIsStatusModalOpen(true)
+                  }}
+                  className={`font-bold text-sm px-5 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer border ${item.isExplore
+                    ? 'bg-[#101424] hover:bg-[#181e36] text-slate-200 border-white/10'
+                    : 'bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border-emerald-500/40'
+                    }`}
                 >
-                  {item.isExplore ? <Plus className="w-4 h-4 text-violet-400" /> : <Plus className="w-4 h-4 text-violet-400" />}
-                  {item.isExplore ? 'Add to List' : 'My List'}
+                  {item.isExplore ? (
+                    <>
+                      <Plus className="w-4 h-4 text-violet-400" />
+                      <span>Add to List</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>Saved</span>
+                    </>
+                  )}
                 </button>
 
                 {(item.type === 'movie' || item.type === 'tv') && resolvedDownloadSources.length > 0 && (
@@ -1162,8 +1374,33 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Director</span>
-                <span className="text-white font-bold truncate max-w-[160px] text-right">{directorName}</span>
+                {directorObj ? (
+                  <span
+                    onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: directorObj.id, name: directorObj.name } } })}
+                    className="text-violet-400 font-bold hover:underline cursor-pointer transition-colors max-w-[160px] truncate text-right"
+                  >
+                    {directorName}
+                  </span>
+                ) : (
+                  <span className="text-white font-bold truncate max-w-[160px] text-right">{directorName}</span>
+                )}
               </div>
+              {details?.production_companies && details.production_companies.length > 0 && (
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-slate-400 font-medium mt-0.5">Studio</span>
+                  <div className="flex flex-col items-end gap-1.5 max-w-[160px]">
+                    {details.production_companies.slice(0, 2).map(studio => (
+                      <span
+                        key={studio.id}
+                        onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'company', id: studio.id, name: studio.name } } })}
+                        className="text-violet-400 font-bold hover:underline cursor-pointer transition-colors text-right leading-tight"
+                      >
+                        {studio.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-medium">Writer</span>
                 <span className="text-white font-bold truncate max-w-[160px] text-right">{writerName}</span>
@@ -1189,121 +1426,112 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
             </div>
           </div>
 
+          {/* POSTER & BANNER Buttons */}
+          {(item?.type === 'movie' || item?.type === 'tv') && (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setImageModalType('posters')
+                  setShowImageModal(true)
+                }}
+                className="bg-[#060810] border border-white/5 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
+              >
+                <Film className="w-4 h-4 text-violet-400" />
+                Posters
+              </button>
+              <button
+                onClick={() => {
+                  setImageModalType('backdrops')
+                  setShowImageModal(true)
+                }}
+                className="bg-[#060810] border border-white/5 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
+              >
+                <Tag className="w-4 h-4 text-violet-400" />
+                Banners
+              </button>
+            </div>
+          )}
+
           {/* RATINGS & SCORES Box */}
           <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center justify-between">
-              <span>RATINGS & SCORES</span>
+              <span className="flex items-center gap-2">
+                <span>RATINGS & SCORES</span>
+                {loadingOmdb && <span className="text-[10px] text-violet-400 font-normal animate-pulse">(Syncing OMDb...)</span>}
+              </span>
               <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
             </h3>
 
             <div className="grid grid-cols-2 gap-3">
-              {/* TMDB Rating */}
-              <div className="bg-[#101424] border border-slate-850 p-3 rounded-xl flex flex-col justify-between">
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1">
-                  <span>TMDB</span>
-                  <Star className="w-3 h-3 text-sky-400 fill-sky-400" />
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-black text-white">{details?.vote_average ? details.vote_average.toFixed(1) : 'N/A'}</span>
-                  <span className="text-[10px] text-slate-500 font-bold">/10</span>
-                </div>
-                <span className="text-[9px] text-slate-500 mt-1 truncate">{details?.vote_count ? `${details.vote_count.toLocaleString()} votes` : 'User Score'}</span>
-              </div>
-
-              {/* IMDb Rating/Link */}
-              {imdbId ? (
-                <a 
-                  href={`https://www.imdb.com/title/${imdbId}`} 
-                  target="_blank" 
+              {ratingCards.map((card) => (
+                <a
+                  key={card.id}
+                  href={card.url}
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-[#101424] border border-[#f5c518]/30 hover:border-[#f5c518]/60 p-3 rounded-xl flex flex-col justify-between transition-all group cursor-pointer"
+                  className={`bg-[#101424] border p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer group ${card.borderClass}`}
                 >
-                  <div className="flex items-center justify-between text-[11px] font-bold text-[#f5c518]">
-                    <span>IMDb</span>
-                    <ExternalLink className="w-3 h-3 text-[#f5c518] group-hover:translate-x-0.5 transition-transform" />
+                  {card.badge}
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-baseline gap-0.5 leading-tight">
+                      <span className="text-base font-black text-white">{card.score}</span>
+                      {card.maxScore && <span className="text-[10px] font-bold text-slate-400">{card.maxScore}</span>}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                      {card.sublabel}
+                    </span>
                   </div>
-                  <div className="text-xs font-black text-slate-200 mt-1">View IMDb</div>
-                  <span className="text-[9px] text-slate-400">Reviews & Trivia</span>
                 </a>
-              ) : (
-                <a 
-                  href={`https://www.imdb.com/find/?q=${encodeURIComponent(title)}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="bg-[#101424] border border-slate-800 hover:border-[#f5c518]/40 p-3 rounded-xl flex flex-col justify-between transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-[11px] font-bold text-[#f5c518]">
-                    <span>IMDb</span>
-                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-[#f5c518] transition-colors" />
-                  </div>
-                  <div className="text-xs font-black text-slate-300 mt-1">Search IMDb</div>
-                  <span className="text-[9px] text-slate-500">Find Page</span>
-                </a>
-              )}
-
-              {/* Rotten Tomatoes */}
-              <a 
-                href={`https://www.rottentomatoes.com/search?search=${encodeURIComponent(title)}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-[#101424] border border-rose-500/20 hover:border-rose-500/50 p-3 rounded-xl flex flex-col justify-between transition-all group cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-[11px] font-bold text-rose-400">
-                  <span>Tomatometer</span>
-                  <ExternalLink className="w-3 h-3 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-                <div className="text-xs font-black text-slate-200 mt-1">Rotten Tomatoes</div>
-                <span className="text-[9px] text-slate-500">Critics Score</span>
-              </a>
-
-              {/* Metacritic */}
-              <a 
-                href={`https://www.metacritic.com/search/${encodeURIComponent(title)}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-[#101424] border border-emerald-500/20 hover:border-emerald-500/50 p-3 rounded-xl flex flex-col justify-between transition-all group cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400">
-                  <span>Metacritic</span>
-                  <ExternalLink className="w-3 h-3 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-                <div className="text-xs font-black text-slate-200 mt-1">Metascore</div>
-                <span className="text-[9px] text-slate-500">Consensus</span>
-              </a>
+              ))}
             </div>
+
+            {/* Extra OMDb Info (Awards & BoxOffice) */}
+            {omdbData && (omdbData.awards || omdbData.boxOffice) && (
+              <div className="mt-3.5 pt-3 border-t border-slate-850/80 flex flex-col gap-1.5 text-[11px]">
+                {omdbData.awards && (
+                  <div className="flex items-center gap-1.5 text-amber-300/90 font-medium truncate" title={omdbData.awards}>
+                    <Award className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                    <span className="truncate">{omdbData.awards}</span>
+                  </div>
+                )}
+                {omdbData.boxOffice && (
+                  <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <span>Box Office: {omdbData.boxOffice}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* WHERE TO WATCH Box */}
           <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
-              WHERE TO WATCH
+              Streaming Platforms
             </h3>
             {watchProviders.length > 0 ? (
-              <div className="flex flex-col gap-2.5">
-                {(showAllProviders ? watchProviders : watchProviders.slice(0, 3)).map(provider => (
-                  <a
-                    key={provider.provider_id}
-                    href={getProviderUrl(provider.provider_name, providerData?.link, title)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 rounded-xl bg-[#101424] border border-slate-850 hover:border-violet-500/40 transition-all group/prov"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img 
-                        src={`https://image.tmdb.org/t/p/original${provider.logo_path}`} 
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {(showAllProviders ? watchProviders : watchProviders.slice(0, 6)).map(provider => (
+                    <a
+                      key={provider.provider_id}
+                      href={getProviderUrl(provider.provider_name, providerData?.link, title)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 py-2 px-3 rounded-xl bg-[#101424] border border-white/[0.04] hover:border-violet-500/30 transition-all group/prov min-w-0"
+                    >
+                      <img
+                        src={`https://image.tmdb.org/t/p/original${provider.logo_path}`}
                         alt={provider.provider_name}
-                        className="w-7 h-7 rounded-lg flex-shrink-0"
+                        className="w-8 h-8 rounded-lg flex-shrink-0"
                       />
                       <span className="text-xs font-bold text-white group-hover/prov:text-violet-300 truncate">
                         {provider.provider_name}
                       </span>
-                    </div>
-                    <span className="text-xs font-extrabold text-violet-400 group-hover/prov:text-violet-300 flex-shrink-0">
-                      Rent / Buy
-                    </span>
-                  </a>
-                ))}
-                {watchProviders.length > 3 && (
+                    </a>
+                  ))}
+                </div>
+                {watchProviders.length > 6 && (
                   <button
                     onClick={() => setShowAllProviders(!showAllProviders)}
                     className="w-full py-2.5 bg-[#101424] hover:bg-[#181e36] border border-slate-800 rounded-xl text-xs font-bold text-slate-300 mt-1 transition-colors cursor-pointer"
@@ -1322,75 +1550,21 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           {/* EXTERNAL LINKS Box */}
           <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-              <ExternalLink className="w-3.5 h-3.5 text-violet-400" />
               EXTERNAL LINKS
             </h3>
             <div className="flex flex-wrap gap-2">
-              {imdbId && (
-                <a 
-                  href={`https://www.imdb.com/title/${imdbId}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border border-amber-500/30 hover:border-amber-400 text-amber-400 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group"
+              {externalLinksData.filter(link => link.show).map((link) => (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group cursor-pointer ${link.borderClass}`}
                 >
-                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded text-[10px] font-black">IMDb</span>
-                  Title Page
-                  <ExternalLink className="w-3 h-3 ml-auto opacity-70 group-hover:opacity-100" />
+                  {link.badge}
+                  <span>{link.label}</span>
                 </a>
-              )}
-              {tmdbId && (
-                <a 
-                  href={`https://www.themoviedb.org/${item.type || 'movie'}/${tmdbId}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border border-sky-500/30 hover:border-sky-400 text-sky-400 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group"
-                >
-                  <span className="bg-sky-400 text-slate-950 px-1.5 py-0.5 rounded text-[10px] font-black">TMDB</span>
-                  Official Page
-                  <ExternalLink className="w-3 h-3 ml-auto opacity-70 group-hover:opacity-100" />
-                </a>
-              )}
-              <a 
-                href={imdbId ? `https://letterboxd.com/imdb/${imdbId}` : `https://letterboxd.com/search/${encodeURIComponent(title)}/`} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border border-orange-500/30 hover:border-orange-400 text-orange-400 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group cursor-pointer"
-              >
-                <span className="bg-orange-500 text-slate-950 px-1.5 py-0.5 rounded text-[10px] font-black">LB</span>
-                Letterboxd
-                <ExternalLink className="w-3 h-3 ml-auto opacity-70 group-hover:opacity-100" />
-              </a>
-              {homepage && (
-                <a 
-                  href={homepage} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border border-violet-500/30 hover:border-violet-400 text-violet-300 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group"
-                >
-                  <span>Official Website</span>
-                  <ExternalLink className="w-3 h-3 ml-auto opacity-70 group-hover:opacity-100" />
-                </a>
-              )}
-              {wikipediaUrl && (
-                <a 
-                  href={wikipediaUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border border-slate-700 hover:border-slate-500 text-slate-300 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group"
-                >
-                  <span>Wikidata</span>
-                  <ExternalLink className="w-3 h-3 ml-auto opacity-70 group-hover:opacity-100" />
-                </a>
-              )}
-              <a 
-                href={`https://www.google.com/search?q=${encodeURIComponent(`${title} ${item.type || 'movie'}`)}`} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group"
-              >
-                <span>Google Search</span>
-                <ExternalLink className="w-3 h-3 ml-auto opacity-70 group-hover:opacity-100" />
-              </a>
+              ))}
             </div>
           </div>
         </div>
@@ -1463,8 +1637,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   </span>
                 </div>
                 <div className="w-full bg-[#101424] rounded-full h-2.5 overflow-hidden border border-white/5">
-                  <div 
-                    className="bg-gradient-to-r from-violet-600 to-indigo-500 h-full rounded-full transition-all duration-500" 
+                  <div
+                    className="bg-gradient-to-r from-violet-600 to-indigo-500 h-full rounded-full transition-all duration-500"
                     style={{ width: `${totalEpisodes > 0 ? Math.min(100, Math.round((myTotalEpisodesWatched / totalEpisodes) * 100)) : 0}%` }}
                   />
                 </div>
@@ -1479,13 +1653,12 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     <button
                       key={s.season_number}
                       onClick={() => toggleSeasonWatched(s.season_number)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                        isWatched
-                          ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                          : isCurrent
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${isWatched
+                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                        : isCurrent
                           ? 'bg-violet-950/60 border-violet-500/40 text-violet-300'
                           : 'bg-[#101424] border-white/5 text-slate-400 hover:text-slate-200'
-                      }`}
+                        }`}
                     >
                       {isWatched && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                       {s.name || `Season ${s.season_number}`}
@@ -1497,7 +1670,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           )}
 
           {/* Cast */}
-          <CastCarousel cast={cast} />
+          <CastCarousel cast={cast} navigate={navigate} />
 
 
           {/* Franchise Collection Section */}
@@ -1510,17 +1683,17 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               <p className="text-xs text-slate-400 mb-4">
                 Explore the entire franchise, ordered by release date.
               </p>
-              
+
               <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none">
                 {sortedParts.map(part => {
                   const releaseDate = part.release_date || ''
                   const partYear = releaseDate ? releaseDate.split('-')[0] : 'TBA'
                   const isCurrent = part.id.toString() === item.tmdb_id
                   const watchlistInstance = userWatchedPart(part.id)
-                  
+
                   return (
-                    <div 
-                      key={part.id} 
+                    <div
+                      key={part.id}
                       onClick={() => {
                         if (isCurrent) return
                         if (watchlistInstance) {
@@ -1529,16 +1702,15 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                           navigate(`/explore/movie/${part.id}`)
                         }
                       }}
-                      className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg flex flex-col group ${
-                        isCurrent 
-                          ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
-                          : 'border-slate-850 hover:border-slate-700/80 cursor-pointer'
-                      }`}
+                      className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg flex flex-col group ${isCurrent
+                        ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
+                        : 'border-slate-850 hover:border-slate-700/80 cursor-pointer'
+                        }`}
                     >
                       <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
                         {part.poster_path ? (
-                          <img 
-                            src={`https://image.tmdb.org/t/p/w185${part.poster_path}`} 
+                          <img
+                            src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
                             alt={part.title}
                             className="w-full h-full object-cover"
                             loading="lazy"
@@ -1548,7 +1720,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                             {part.title.charAt(0)}
                           </div>
                         )}
-                        
+
                         {isCurrent && (
                           <div className="absolute top-2 left-2 bg-violet-600/90 backdrop-blur text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-md">
                             CURRENT
@@ -1561,7 +1733,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="p-2.5 flex flex-col flex-grow justify-between min-h-[64px] bg-gradient-to-b from-[#0f1422] to-[#070b13]">
                         <span className={`text-[10px] font-bold line-clamp-2 w-full ${isCurrent ? 'text-violet-400' : 'text-slate-200'}`} title={part.title}>
                           {part.title}
@@ -1593,7 +1765,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   <p className="text-slate-500 italic text-xs">No notes or review written for this item yet. Use the Quick Edit button in your watchlist to add some!</p>
                 )}
               </div>
-              
+
               <div className="mt-3 text-[10px] text-slate-500 flex flex-col gap-1">
                 <span>Added to list: {new Date(item.created_at).toLocaleDateString()}</span>
                 {item.watched_at && <span>Last Activity: {new Date(item.watched_at).toLocaleDateString()}</span>}
@@ -1607,7 +1779,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       {isTrailerOpen && trailer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in p-4 sm:p-8">
           <div className="relative w-full max-w-6xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-            <button 
+            <button
               onClick={() => setIsTrailerOpen(false)}
               className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 flex items-center gap-2 bg-black/50 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors cursor-pointer backdrop-blur-md border border-white/10 shadow-lg"
             >
@@ -1635,18 +1807,17 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 <button
                   key={source.id}
                   onClick={() => setActiveSource(source.id)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer whitespace-nowrap ${
-                    activeSource === source.id
-                      ? 'bg-violet-600 border-violet-500 text-white shadow-md shadow-violet-500/20'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer whitespace-nowrap ${activeSource === source.id
+                    ? 'bg-violet-600 border-violet-500 text-white shadow-md shadow-violet-500/20'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
                 >
                   {source.name}
                 </button>
               ))}
             </div>
 
-            <button 
+            <button
               onClick={() => setIsPlayerOpen(false)}
               className="flex items-center gap-2 bg-slate-900 hover:bg-slate-855 text-white px-4 py-2 rounded-full font-bold transition-colors cursor-pointer border border-slate-800 shadow-lg text-xs flex-shrink-0"
             >
@@ -1724,7 +1895,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 <button
                   onClick={handleNextEpisode}
                   disabled={
-                    selectedSeason === maxSeasonsNum && 
+                    selectedSeason === maxSeasonsNum &&
                     selectedEpisode === maxEpisodesInLastSeason
                   }
                   className="flex items-center gap-1.5 bg-gradient-to-r from-violet-650 to-indigo-650 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
@@ -1749,12 +1920,12 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   Download Sources
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  {item?.type === 'tv' 
-                    ? `Season ${selectedSeason}, Episode ${selectedEpisode}` 
+                  {item?.type === 'tv'
+                    ? `Season ${selectedSeason}, Episode ${selectedEpisode}`
                     : 'Choose a provider link to view download options'}
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsDownloadOpen(false)}
                 className="flex items-center gap-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer border border-slate-850 shadow-md text-xs"
               >
@@ -1815,7 +1986,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   <button
                     onClick={handleNextEpisode}
                     disabled={
-                      selectedSeason === maxSeasonsNum && 
+                      selectedSeason === maxSeasonsNum &&
                       selectedEpisode === maxEpisodesInLastSeason
                     }
                     className="flex items-center gap-1 bg-gradient-to-r from-violet-650 to-indigo-650 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
@@ -1843,6 +2014,156 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   <ExternalLink className="w-3.5 h-3.5 text-violet-400" />
                 </a>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Modal Overlay */}
+      {isStatusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-4">
+          <div className="bg-[#0f1422] border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+              <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                {item.isExplore ? (
+                  <>
+                    <Plus className="w-5 h-5 text-violet-400" />
+                    Add to Watchlist
+                  </>
+                ) : (
+                  <>
+                    <Edit className="w-5 h-5 text-violet-400" />
+                    Update Watchlist Status
+                  </>
+                )}
+              </h3>
+              <button
+                onClick={() => setIsStatusModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Watch Status
+                </label>
+                <select
+                  value={addStatus}
+                  onChange={(e) => setAddStatus(e.target.value)}
+                  className="w-full bg-[#060810] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
+                >
+                  <option value="completed">{(item.type || type) === 'game' ? 'Beaten' : 'Completed'}</option>
+                  <option value="watching">{(item.type || type) === 'game' ? 'Playing' : 'Watching'}</option>
+                  <option value="pending">{(item.type || type) === 'tv' ? 'Up Next' : 'Pending'}</option>
+                  <option value="planned">Planned</option>
+                  <option value="backlog">Backlog</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Notes / Review
+                </label>
+                <textarea
+                  rows="3"
+                  value={addReview}
+                  onChange={(e) => setAddReview(e.target.value)}
+                  placeholder="Add personal notes or review..."
+                  className="w-full bg-[#060810] border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-6">
+              {!item.isExplore && onRemoveItem && (
+                <button
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to remove this item from your watchlist?')) {
+                      await onRemoveItem(item.id)
+                      setIsStatusModalOpen(false)
+                      navigate('/')
+                    }
+                  }}
+                  className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl font-bold transition-all cursor-pointer"
+                  title="Remove from List"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => setIsStatusModalOpen(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (item.isExplore) {
+                    await handleAddItemFromDetails()
+                  } else if (onUpdateItem) {
+                    await onUpdateItem(item.id, { status: addStatus, review: addReview.trim() })
+                  }
+                  setIsStatusModalOpen(false)
+                }}
+                className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+              >
+                <Check className="w-4 h-4" />
+                {item.isExplore ? 'Save to List' : 'Update Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for viewing all posters/banners */}
+      {showImageModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-850 mb-4">
+              <h3 className="text-lg font-bold text-white uppercase tracking-wider">
+                All {imageModalType === 'posters' ? 'Posters' : 'Banners'} ({details?.images?.[imageModalType]?.length || 0})
+              </h3>
+              <button
+                onClick={() => setShowImageModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto pr-1 flex-1">
+              {details?.images?.[imageModalType] && details.images[imageModalType].length > 0 ? (
+                <div className={`grid gap-4 ${imageModalType === 'posters' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                  {details.images[imageModalType].slice(0, 48).map((img, index) => (
+                    <a
+                      key={index}
+                      href={`https://image.tmdb.org/t/p/original${img.file_path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative rounded-xl overflow-hidden bg-slate-950 border border-slate-850 hover:border-violet-500/40 transition-all shadow-md flex"
+                    >
+                      <img
+                        src={`https://image.tmdb.org/t/p/${imageModalType === 'posters' ? 'w342' : 'w780'}${img.file_path}`}
+                        alt=""
+                        className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-white bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800 backdrop-blur-sm">
+                          Open Original
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 text-slate-500 italic text-xs">
+                  No images found in this category.
+                </div>
+              )}
             </div>
           </div>
         </div>
