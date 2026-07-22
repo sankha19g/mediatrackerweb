@@ -276,14 +276,25 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
 const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navigate }) => {
   const [data, setData] = useState(null)
   const [works, setWorks] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [worksSearchQuery, setWorksSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [fadeWatched, setFadeWatched] = useState(false)
   const [profileImages, setProfileImages] = useState([])
   const [bioExpanded, setBioExpanded] = useState(false)
-  const [sortBy, setSortBy] = useState('popularity')
+  const [sortBy, setSortBy] = useState('release_date')
   const [mediaFilter, setMediaFilter] = useState('all')
   const [showDropdown, setShowDropdown] = useState(false)
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setWorksSearchQuery('')
+  }, [detail])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [sortBy, mediaFilter, worksSearchQuery])
 
   const filteredAndSortedWorks = useMemo(() => {
     let result = [...works]
@@ -295,7 +306,16 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
       result = result.filter(item => (item.media_type || (item.title ? 'movie' : 'tv')) === 'tv')
     }
 
-    // 2. Sort
+    // 2. Search
+    if (worksSearchQuery.trim()) {
+      const q = worksSearchQuery.toLowerCase()
+      result = result.filter(item => 
+        (item.title && item.title.toLowerCase().includes(q)) ||
+        (item.name && item.name.toLowerCase().includes(q))
+      )
+    }
+
+    // 3. Sort
     if (sortBy === 'release_date') {
       result.sort((a, b) => {
         const dateA = a.release_date || a.first_air_date || ''
@@ -328,7 +348,14 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
     }
 
     return result
-  }, [works, sortBy, mediaFilter, watchedItems])
+  }, [works, sortBy, mediaFilter, worksSearchQuery, watchedItems])
+
+  const ITEMS_PER_PAGE = 30
+  const totalPages = Math.ceil(filteredAndSortedWorks.length / ITEMS_PER_PAGE) || 1
+  const paginatedWorks = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredAndSortedWorks.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [filteredAndSortedWorks, currentPage])
 
   useEffect(() => {
     let active = true
@@ -360,7 +387,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
               uniqueWorks.push(item)
             }
           }
-          setWorks(uniqueWorks.slice(0, 36)) // Limit to top 36 works
+          setWorks(uniqueWorks) // Store complete filmography to allow full-list sorting/filtering
         } else if (detail.type === 'company') {
           // Fetch company details
           const detailsRes = await fetchTMDB(`/company/${detail.id}`)
@@ -381,7 +408,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
             .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
             .filter(i => i.poster_path)
           
-          setWorks(combined.slice(0, 36))
+          setWorks(combined) // Store complete studio catalog to allow full-list sorting/filtering
         }
       } catch (err) {
         console.error('Error fetching details:', err)
@@ -590,6 +617,13 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
           </h2>
           
           <div className="flex items-center gap-4 relative">
+            <input
+              type="text"
+              placeholder="Search films..."
+              value={worksSearchQuery}
+              onChange={(e) => setWorksSearchQuery(e.target.value)}
+              className="bg-slate-900 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 w-32 sm:w-40 transition-all focus:w-48"
+            />
             <span className="text-xs font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-lg">
               {watchedCount} films watched
             </span>
@@ -697,63 +731,95 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
             No movie or TV show credits found matching these filters.
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6">
-            {filteredAndSortedWorks.map((item) => {
-              const mediaType = item.media_type || (item.title ? 'movie' : 'tv')
-              const isMovie = mediaType === 'movie'
-              const releaseDate = isMovie ? item.release_date : item.first_air_date
-              const releaseYear = releaseDate ? releaseDate.split('-')[0] : 'N/A'
-              const cardKey = `work_${item.id}`
-              const watched = watchedItems.find(wi =>
-                wi.type === mediaType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only'
-              )
+          <>
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
+              {paginatedWorks.map((item) => {
+                const mediaType = item.media_type || (item.title ? 'movie' : 'tv')
+                const isMovie = mediaType === 'movie'
+                const releaseDate = isMovie ? item.release_date : item.first_air_date
+                const releaseYear = releaseDate ? releaseDate.split('-')[0] : 'N/A'
+                const cardKey = `work_${item.id}`
+                const watched = watchedItems.find(wi =>
+                  wi.type === mediaType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only'
+                )
 
-              return (
-                <div
-                  key={cardKey}
-                  className={`group/card relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${
-                    fadeWatched && watched ? 'opacity-30 grayscale-[30%] brightness-[60%] hover:opacity-100 hover:grayscale-0 hover:brightness-100' : ''
+                return (
+                  <div
+                    key={cardKey}
+                    className={`group/card relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${
+                      fadeWatched && watched ? 'opacity-30 grayscale-[30%] brightness-[60%] hover:opacity-100 hover:grayscale-0 hover:brightness-100' : ''
+                    }`}
+                  >
+                    {/* Media Type & Rating Badges */}
+                    <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
+                      <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md backdrop-blur-md border ${
+                        isMovie ? 'bg-sky-500/80 text-white border-sky-400/30' : 'bg-indigo-500/80 text-white border-indigo-400/30'
+                      }`}>
+                        {isMovie ? 'Movie' : 'TV'}
+                      </span>
+                    </div>
+
+                    <div className="absolute top-2.5 right-2.5 z-10">
+                      <span className="text-[10px] font-bold bg-slate-950/80 backdrop-blur-md text-amber-400 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1 shadow-md">
+                        <Star className="w-3 h-3 fill-amber-400" />
+                        {(item.vote_average || 0).toFixed(1)}
+                      </span>
+                    </div>
+
+                    {/* Poster Image */}
+                    <div
+                      className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
+                      onClick={() => navigate(`/explore/${mediaType}/${item.id}`)}
+                    >
+                      <img
+                        src={getPosterUrl(item.poster_path)}
+                        alt={isMovie ? item.title : item.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                        loading="lazy"
+                      />
+
+                      {watched && (
+                        <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${getStatusLabelAndStyle(watched.status).containerStyle}`}>
+                          <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
+                          <span>{getStatusLabelAndStyle(watched.status).label}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 pt-8">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    currentPage === 1
+                      ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
+                      : 'bg-[#101424] hover:bg-[#181e36] border-slate-800 text-slate-350 hover:text-white active:scale-95'
                   }`}
                 >
-                  {/* Media Type & Rating Badges */}
-                  <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
-                    <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md backdrop-blur-md border ${
-                      isMovie ? 'bg-sky-500/80 text-white border-sky-400/30' : 'bg-indigo-500/80 text-white border-indigo-400/30'
-                    }`}>
-                      {isMovie ? 'Movie' : 'TV'}
-                    </span>
-                  </div>
-
-                  <div className="absolute top-2.5 right-2.5 z-10">
-                    <span className="text-[10px] font-bold bg-slate-950/80 backdrop-blur-md text-amber-400 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1 shadow-md">
-                      <Star className="w-3 h-3 fill-amber-400" />
-                      {(item.vote_average || 0).toFixed(1)}
-                    </span>
-                  </div>
-
-                  {/* Poster Image */}
-                  <div
-                    className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                    onClick={() => navigate(`/explore/${mediaType}/${item.id}`)}
-                  >
-                    <img
-                      src={getPosterUrl(item.poster_path)}
-                      alt={isMovie ? item.title : item.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
-                      loading="lazy"
-                    />
-
-                    {watched && (
-                      <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${getStatusLabelAndStyle(watched.status).containerStyle}`}>
-                        <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
-                        <span>{getStatusLabelAndStyle(watched.status).label}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                  Previous
+                </button>
+                <span className="text-xs font-bold text-slate-400">
+                  Page <span className="text-white">{currentPage}</span> of <span className="text-white">{totalPages}</span>
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    currentPage === totalPages
+                      ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
+                      : 'bg-[#101424] hover:bg-[#181e36] border-slate-800 text-slate-350 hover:text-white active:scale-95'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1021,6 +1087,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
       status: userStatus,
       country: getCountryFromTMDBItem(addingItem),
       original_language: addingItem.original_language || 'en',
+      genre_ids: addingItem.genre_ids || [],
       ...(mediaType === 'tv' && {
         season_number: 1,
         season_progress: userStatus === 'watching' ? { 1: 1 } : { 1: 0 }
@@ -1079,6 +1146,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
           status: targetStatus,
           country: getCountryFromTMDBItem(item),
           original_language: item.original_language || 'en',
+          genre_ids: item.genre_ids || [],
           ...(mediaType === 'tv' && {
             season_number: 1,
             season_progress: targetStatus === 'watching' ? { 1: 1 } : { 1: 0 }
@@ -1317,15 +1385,15 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
       )}
 
       {/* Top Search & Filter Section */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="relative w-full max-w-2xl">
+      <div className="flex flex-row items-center justify-between gap-3 w-full">
+        <div className="relative flex-1 max-w-2xl">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search all Movies & TV Shows by title..."
-            className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-2xl pl-12 pr-12 py-3.5 text-white text-base placeholder-slate-500 transition-all shadow-xl"
+            className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-2xl pl-12 pr-10 py-3.5 text-white text-base placeholder-slate-500 transition-all shadow-xl"
           />
           {query && (
             <button
@@ -1338,21 +1406,22 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
         </div>
 
         {/* Multi-Select Control Toggle */}
-        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={() => {
               setIsSelectMode(!isSelectMode)
               setSelectedItems({})
             }}
-            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border text-xs sm:text-sm font-semibold cursor-pointer transition-all whitespace-nowrap ${
+            className={`flex items-center justify-center gap-2 p-3.5 sm:px-4 sm:py-3.5 rounded-2xl border text-xs sm:text-sm font-semibold cursor-pointer transition-all whitespace-nowrap ${
               isSelectMode
                 ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
                 : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
             }`}
+            title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
           >
             <ListChecks className="w-4 h-4" />
-            <span>{isSelectMode ? 'Cancel Selection' : 'Select Items'}</span>
+            <span className="hidden sm:inline">{isSelectMode ? 'Cancel Selection' : 'Select Items'}</span>
           </button>
         </div>
       </div>
@@ -1468,7 +1537,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
                       <Film className="w-4 h-4 text-violet-400" />
                       Movies & TV Shows
                     </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4 sm:gap-6">
                       {searchResults
                         .filter(i => getItemMediaType(i) === 'movie' || getItemMediaType(i) === 'tv')
                         .map(item => renderCard(item, false))}
@@ -1478,7 +1547,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
               </div>
             ) : (
               /* Single filter grid mode */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4 sm:gap-6">
                 {filteredSearchResults.map(item => renderCard(item, false))}
               </div>
             )
@@ -1584,7 +1653,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
               </div>
 
               {/* Manual Carousel Arrow Controls */}
-              <div className="absolute right-4 bottom-6 z-20 flex items-center gap-2">
+              <div className="absolute right-4 top-4 sm:top-auto sm:bottom-6 z-20 flex items-center gap-2">
                 <button
                   onClick={() => setBannerIndex(prev => (prev === 0 ? featuredSlides.length - 1 : prev - 1))}
                   className="w-10 h-10 rounded-2xl bg-slate-950/80 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer hover:border-slate-600 shadow-xl"

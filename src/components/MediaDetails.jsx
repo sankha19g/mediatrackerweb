@@ -900,34 +900,29 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     }
   }, [])
 
-  const budgetRaw = omdbData?.budget || (details?.budget ? `$${details.budget.toLocaleString()}` : null)
+  const formatUSD = (num) => {
+    if (!num || num <= 0) return null
+    if (num >= 1000000000) {
+      return `$${parseFloat((num / 1000000000).toFixed(2))} Billion`
+    }
+    if (num >= 1000000) {
+      return `$${parseFloat((num / 1000000).toFixed(2))} Million`
+    }
+    return `$${num.toLocaleString()}`
+  }
+
+  const budgetRaw = formatUSD(details?.budget)
+  const revenueRaw = formatUSD(details?.revenue)
 
   const budgetINR = (() => {
-    if (!budgetRaw) return null
-    let numVal = 0
-    if (typeof budgetRaw === 'number') {
-      numVal = budgetRaw
-    } else {
-      const parsed = parseFloat(budgetRaw.replace(/[^0-9.]/g, ''))
-      numVal = isNaN(parsed) ? 0 : parsed
-    }
-    if (numVal <= 0) return null
-    const crores = (numVal * 83) / 10000000
+    if (!details?.budget) return null
+    const crores = (details.budget * 95) / 10000000
     return `${crores.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} Crores`
   })()
 
-  const boxOfficeINR = (() => {
-    const rawBox = omdbData?.boxOffice
-    if (!rawBox) return null
-    let numVal = 0
-    if (typeof rawBox === 'number') {
-      numVal = rawBox
-    } else {
-      const parsed = parseFloat(rawBox.replace(/[^0-9.]/g, ''))
-      numVal = isNaN(parsed) ? 0 : parsed
-    }
-    if (numVal <= 0) return null
-    const crores = (numVal * 83) / 10000000
+  const revenueINR = (() => {
+    if (!details?.revenue) return null
+    const crores = (details.revenue * 95) / 10000000
     return `${crores.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} Crores`
   })()
 
@@ -1602,8 +1597,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               ))}
             </div>
 
-            {/* Extra OMDb Info (Awards, BoxOffice & Budget) */}
-            {((omdbData && (omdbData.awards || omdbData.boxOffice)) || budgetRaw) && (
+            {/* Extra OMDb & TMDB Info (Awards, Budget & Revenue) */}
+            {((omdbData && omdbData.awards) || budgetRaw || revenueRaw) && (
               <div className="mt-3.5 pt-3 border-t border-slate-800 flex flex-col gap-1.5 text-[11px]">
                 {omdbData?.awards && (
                   <div className="flex items-center gap-1.5 text-amber-300/90 font-medium truncate" title={omdbData.awards}>
@@ -1611,19 +1606,19 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     <span className="truncate">{omdbData.awards}</span>
                   </div>
                 )}
-                {omdbData?.boxOffice && (
-                  <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>
-                      Box Office: {omdbData.boxOffice} {boxOfficeINR && <span className="text-[#a78bfa]">(INR Rs. {boxOfficeINR})</span>}
-                    </span>
-                  </div>
-                )}
                 {budgetRaw && (
                   <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
                     <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                     <span>
-                      Production Budget: {budgetRaw} {budgetINR && <span className="text-[#a78bfa]">(INR Rs. {budgetINR})</span>}
+                      Budget: {budgetRaw} {budgetINR && <span className="text-[#a78bfa]">(INR Rs. {budgetINR})</span>}
+                    </span>
+                  </div>
+                )}
+                {revenueRaw && (
+                  <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <span>
+                      Revenue: {revenueRaw} {revenueINR && <span className="text-[#a78bfa]">(INR Rs. {revenueINR})</span>}
                     </span>
                   </div>
                 )}

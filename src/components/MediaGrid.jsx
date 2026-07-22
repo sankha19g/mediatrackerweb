@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Star, Calendar, Trash2, Edit, MessageSquare, Tag, Eye, Filter, ArrowUpDown, Film, Tv, Gamepad, CheckSquare, Square, Check, X, ListChecks, Sparkles, RefreshCw, Globe } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Star, Calendar, Trash2, Edit, MessageSquare, Tag, Eye, Filter, ArrowUpDown, Film, Tv, Gamepad, CheckSquare, Square, Check, X, ListChecks, Sparkles, RefreshCw, Globe, MapPin } from 'lucide-react'
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
 import CustomLists from './CustomLists'
 import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems } from '../lib/firebase'
@@ -51,6 +51,51 @@ const LANGUAGE_NAMES = {
   'ro': 'Romanian'
 }
 
+const COUNTRY_MAP = {
+  'US': 'United States',
+  'GB': 'United Kingdom',
+  'JP': 'Japan',
+  'KR': 'South Korea',
+  'FR': 'France',
+  'IT': 'Italy',
+  'ES': 'Spain',
+  'DE': 'Germany',
+  'IN': 'India',
+  'CN': 'China',
+  'HK': 'Hong Kong',
+  'TW': 'Taiwan',
+  'CA': 'Canada',
+  'AU': 'Australia',
+  'NZ': 'New Zealand',
+  'BR': 'Brazil',
+  'MX': 'Mexico',
+  'DK': 'Denmark',
+  'SE': 'Sweden',
+  'NO': 'Norway',
+  'FI': 'Finland',
+  'NL': 'Netherlands',
+  'PL': 'Poland',
+  'RU': 'Russia',
+  'TH': 'Thailand',
+  'TR': 'Turkey',
+}
+
+const LANG_TO_COUNTRY = {
+  'en': 'United States',
+  'ja': 'Japan',
+  'ko': 'South Korea',
+  'fr': 'France',
+  'it': 'Italy',
+  'es': 'Spain',
+  'de': 'Germany',
+  'hi': 'India',
+  'zh': 'China',
+  'cn': 'China',
+  'ru': 'Russia',
+  'pt': 'Brazil',
+  'th': 'Thailand',
+}
+
 export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveItem, onItemClick, onAddItem, onAddItems, user }) {
   const [statusFilter, setStatusFilter] = useState(() => {
     return localStorage.getItem('cinelog_status_filter') || 'all'
@@ -61,38 +106,80 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   const [showFilterDropdown, setShowFilterDropdown] = useState(false)
   const [yearFilter, setYearFilter] = useState('all')
   const [languageFilter, setLanguageFilter] = useState('all')
+  const [countryFilter, setCountryFilter] = useState('all')
+  const [hideIndian, setHideIndian] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     setYearFilter('all')
     setLanguageFilter('all')
+    setCountryFilter('all')
+    setHideIndian(false)
+    setCurrentPage(1)
   }, [typeFilter])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, searchQuery, sortBy, yearFilter, languageFilter, countryFilter, hideIndian])
 
   useEffect(() => {
     localStorage.setItem('cinelog_status_filter', statusFilter)
   }, [statusFilter])
 
-  // Auto-fill missing original_language for existing items with tmdb_id
+  // Auto-fill missing original_language and country for existing items with tmdb_id
   useEffect(() => {
-    const itemsMissingLang = items.filter(item => item.tmdb_id && (!item.original_language || item.original_language === ''))
-    if (itemsMissingLang.length === 0 || !isTMDBConfigured()) return
+    const itemsToHeal = items.filter(item => 
+      item.tmdb_id && (
+        !item.original_language || item.original_language === '' || 
+        !item.country || item.country === ''
+      )
+    )
+    if (itemsToHeal.length === 0 || !isTMDBConfigured()) return
 
     let isMounted = true
-    const healLanguages = async () => {
-      const batch = itemsMissingLang.slice(0, 15)
+    const healMetadata = async () => {
+      const batch = itemsToHeal.slice(0, 15)
       for (const item of batch) {
         if (!isMounted) break
         try {
           const endpoint = item.type === 'movie' ? `/movie/${item.tmdb_id}` : `/tv/${item.tmdb_id}`
           const details = await fetchTMDB(endpoint)
-          if (details && details.original_language && isMounted) {
-            onUpdateItem(item.id, { original_language: details.original_language })
+          if (details && isMounted) {
+            const updates = {}
+            
+            // Resolve language if missing
+            if (!item.original_language || item.original_language === '') {
+              if (details.original_language) {
+                updates.original_language = details.original_language
+              }
+            }
+            
+            // Resolve country if missing
+            if (!item.country || item.country === '') {
+              let resolvedCountry = 'Unknown'
+              if (details.origin_country && Array.isArray(details.origin_country) && details.origin_country.length > 0) {
+                const code = details.origin_country[0].toUpperCase()
+                resolvedCountry = COUNTRY_MAP[code] || code
+              } else if (details.production_countries && Array.isArray(details.production_countries) && details.production_countries.length > 0) {
+                const code = details.production_countries[0].iso_3166_1.toUpperCase()
+                resolvedCountry = COUNTRY_MAP[code] || code
+              } else if (details.original_language || item.original_language) {
+                const lang = (details.original_language || item.original_language).toLowerCase()
+                resolvedCountry = LANG_TO_COUNTRY[lang] || 'Unknown'
+              }
+              updates.country = resolvedCountry
+            }
+
+            if (Object.keys(updates).length > 0) {
+              onUpdateItem(item.id, updates)
+            }
           }
         } catch (err) {
           // Ignore individual fetch errors
         }
       }
     }
-    healLanguages()
+    healMetadata()
     return () => { isMounted = false }
   }, [items, onUpdateItem])
   
@@ -168,6 +255,32 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
   const availableLanguages = Array.from(availableLanguagesMap.values())
     .sort((a, b) => a.name.localeCompare(b.name))
+
+  const normalizeCountryName = (c) => {
+    if (!c) return ''
+    const clean = c.trim().toLowerCase()
+    if (clean === 'us' || clean === 'usa' || clean === 'united states') return 'United States'
+    if (clean === 'gb' || clean === 'uk' || clean === 'united kingdom') return 'United Kingdom'
+    if (clean === 'kr' || clean === 'south korea') return 'South Korea'
+    if (clean === 'jp' || clean === 'japan') return 'Japan'
+    if (clean === 'fr' || clean === 'france') return 'France'
+    if (clean === 'in' || clean === 'india') return 'India'
+    if (clean === 'cn' || clean === 'china') return 'China'
+    return c.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+  }
+
+  const matchCountry = (itemCountry, targetFilter) => {
+    if (targetFilter === 'all') return true
+    if (!itemCountry) return false
+    return normalizeCountryName(itemCountry) === normalizeCountryName(targetFilter)
+  }
+
+  const availableCountries = Array.from(new Set(
+    items
+      .filter(item => item.type === typeFilter)
+      .map(item => normalizeCountryName(item.country))
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b))
 
   // ── TV Show grouping helper ──────────────────────────────────────────────
   // Collapses all per-season items for a show into one representative card.
@@ -245,6 +358,8 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
         .filter(show => statusFilter === 'all' || show.virtualStatus === statusFilter)
         .filter(show => yearFilter === 'all' || show.release_year === yearFilter)
         .filter(show => matchLanguage(show.original_language, languageFilter))
+        .filter(show => matchCountry(show.country, countryFilter))
+        .filter(show => !hideIndian || normalizeCountryName(show.country) !== 'India')
         .filter(show => show.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : items
         .filter(item => item.type === typeFilter && item.status !== 'list_only')
@@ -252,6 +367,8 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
         .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
         .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
         .filter(item => matchLanguage(item.original_language, languageFilter))
+        .filter(item => matchCountry(item.country, countryFilter))
+        .filter(item => !hideIndian || normalizeCountryName(item.country) !== 'India')
         .filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
   // Sort items
@@ -264,6 +381,13 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     }
     return 0
   })
+
+  const ITEMS_PER_PAGE = 50
+  const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE) || 1
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    return sortedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [sortedItems, currentPage])
 
   const openEditDialog = (item) => {
     setEditingItem(item)
@@ -589,6 +713,38 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                     </select>
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Country
+                  </label>
+                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={countryFilter}
+                      onChange={(e) => setCountryFilter(e.target.value)}
+                      className="bg-transparent border-none text-xs text-slate-350 focus:outline-none cursor-pointer w-full pr-1"
+                    >
+                      <option value="all" className="bg-slate-950 text-slate-300">All Countries</option>
+                      {availableCountries.map(country => (
+                        <option key={country} value={country} className="bg-slate-950 text-slate-300">{country}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hide Indian</span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={hideIndian}
+                      onChange={(e) => setHideIndian(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4.5 bg-slate-950 rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-3.5 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-500 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-violet-600 peer-checked:after:bg-white"></div>
+                  </label>
+                </div>
               </div>
             )}
           </div>
@@ -637,84 +793,116 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
       {/* Media Grid Cards */}
       {sortedItems.length > 0 ? (
-        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6">
-          {sortedItems.map((item) => {
-            // For grouped TV shows, the id is the rep item's id;
-            // for multi-select we match on the representative id
-            const cardId = item.id
-            const isTV = item.type === 'tv'
-            const activeSeason    = item._activeSeason
-            const pct             = item._pct ?? 0
-            const completedSeas   = item._completedSeasons ?? 0
-            const remainingSeas   = item._remainingSeasons ?? 0
-            const totalSeas       = item._totalSeasons ?? 0
-            const activeSeasonNum = activeSeason?.season_number ?? item.season_number ?? null
+        <>
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
+            {paginatedItems.map((item) => {
+              // For grouped TV shows, the id is the rep item's id;
+              // for multi-select we match on the representative id
+              const cardId = item.id
+              const isTV = item.type === 'tv'
+              const activeSeason    = item._activeSeason
+              const pct             = item._pct ?? 0
+              const completedSeas   = item._completedSeasons ?? 0
+              const remainingSeas   = item._remainingSeasons ?? 0
+              const totalSeas       = item._totalSeasons ?? 0
+              const activeSeasonNum = activeSeason?.season_number ?? item.season_number ?? null
 
-            // For TV groups, navigate via the ACTIVE (in-progress) season item
-            const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
+              // For TV groups, navigate via the ACTIVE (in-progress) season item
+              const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
 
-            return (
-            <div 
-              key={cardId}
-              className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${
-                isSelectMode && selectedIds.includes(cardId)
-                  ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
-                  : 'border-slate-800 hover:border-slate-700/50'
-              }`}
-            >
-              {/* Card Image */}
+              return (
               <div 
-                className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                onClick={() => {
-                  if (isSelectMode) {
-                    setSelectedIds(prev => 
-                      prev.includes(cardId) 
-                        ? prev.filter(id => id !== cardId) 
-                        : [...prev, cardId]
-                    )
-                  } else {
-                    onItemClick && onItemClick(navItem)
-                  }
-                }}
+                key={cardId}
+                className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${
+                  isSelectMode && selectedIds.includes(cardId)
+                    ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
+                    : 'border-slate-800 hover:border-slate-700/50'
+                }`}
               >
-                <img
-                  src={getPosterUrl(item.poster_path)}
-                  alt={item.title}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  loading="lazy"
-                />
+                {/* Card Image */}
+                <div 
+                  className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
+                  onClick={() => {
+                    if (isSelectMode) {
+                      setSelectedIds(prev => 
+                        prev.includes(cardId) 
+                          ? prev.filter(id => id !== cardId) 
+                          : [...prev, cardId]
+                      )
+                    } else {
+                      onItemClick && onItemClick(navItem)
+                    }
+                  }}
+                >
+                  <img
+                    src={getPosterUrl(item.poster_path)}
+                    alt={item.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
 
-                {/* Multi-select check icon */}
-                {isSelectMode && (
-                  <div className="absolute top-2 right-2 z-20">
-                    {selectedIds.includes(cardId) ? (
-                      <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
-                        <Check className="w-3.5 h-3.5 font-bold" />
-                      </div>
-                    ) : (
-                      <div className="bg-slate-950/80 border border-slate-750 text-slate-450 p-1.5 rounded-lg shadow-lg">
-                        <div className="w-3 h-3 rounded-sm border border-slate-500" />
-                      </div>
-                    )}
+                  {/* Multi-select check icon */}
+                  {isSelectMode && (
+                    <div className="absolute top-2 right-2 z-20">
+                      {selectedIds.includes(cardId) ? (
+                        <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
+                          <Check className="w-3.5 h-3.5 font-bold" />
+                        </div>
+                      ) : (
+                        <div className="bg-slate-950/80 border border-slate-750 text-slate-450 p-1.5 rounded-lg shadow-lg">
+                          <div className="w-3 h-3 rounded-sm border border-slate-500" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Status Tag on Top Left */}
+                  <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold border backdrop-blur-md ${getStatusBadgeColor(item.virtualStatus)}`}>
+                    {getStatusLabel(item.virtualStatus)}
                   </div>
-                )}
 
-                {/* Status Tag on Top Left */}
-                <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold border backdrop-blur-md ${getStatusBadgeColor(item.virtualStatus)}`}>
-                  {getStatusLabel(item.virtualStatus)}
+                  {/* TV: total seasons badge top-right (non-select mode) */}
+                  {isTV && !isSelectMode && totalSeas > 1 && (
+                    <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
+                      {totalSeas}S
+                    </div>
+                  )}
                 </div>
-
-                {/* TV: total seasons badge top-right (non-select mode) */}
-                {isTV && !isSelectMode && totalSeas > 1 && (
-                  <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
-                    {totalSeas}S
-                  </div>
-                )}
               </div>
+              )
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 pt-8">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className={`px-4 py-2 border text-xs font-semibold transition-all cursor-pointer ${
+                  currentPage === 1
+                    ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
+                    : 'bg-slate-900 border-slate-800 text-slate-450 hover:text-slate-200 hover:border-slate-700 active:scale-95'
+                }`}
+              >
+                Previous
+              </button>
+              <span className="text-xs font-bold text-slate-450">
+                Page <span className="text-white">{currentPage}</span> of <span className="text-white">{totalPages}</span>
+              </span>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className={`px-4 py-2 border text-xs font-semibold transition-all cursor-pointer ${
+                  currentPage === totalPages
+                    ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
+                    : 'bg-slate-900 border-slate-800 text-slate-450 hover:text-slate-200 hover:border-slate-700 active:scale-95'
+                }`}
+              >
+                Next
+              </button>
             </div>
-            )
-          })}
-        </div>
+          )}
+        </>
       ) : (
         /* Empty Grid State */
         <div className="text-center py-20 border border-dashed border-slate-800 rounded-2xl max-w-md mx-auto mt-6">

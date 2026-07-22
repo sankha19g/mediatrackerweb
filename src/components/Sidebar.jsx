@@ -1,4 +1,4 @@
-import { X, Film, Tv, Compass, Settings as SettingsIcon, Shield, Layers, HelpCircle, UploadCloud, LogOut, Play, Globe } from 'lucide-react'
+import { X, Film, Tv, Compass, Settings as SettingsIcon, Shield, Layers, HelpCircle, UploadCloud, LogOut, Play, Globe, BarChart2 } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { isTMDBConfigured } from '../lib/tmdb'
 
@@ -71,6 +71,18 @@ export default function Sidebar({
                 {watchedCount}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => handleLinkClick('statistics')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+              activeView === 'statistics'
+                ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4" />
+            <span>Statistics</span>
           </button>
 
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-6 mb-2 px-3">

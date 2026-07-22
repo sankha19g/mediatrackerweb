@@ -32,6 +32,7 @@ import MediaDetails from './components/MediaDetails'
 import ImportExport from './components/ImportExport'
 import Sources from './components/Sources'
 import SavedSites from './components/SavedSites'
+import Statistics from './components/Statistics'
 import { PlusCircle, ShieldAlert, CheckCircle, Database } from 'lucide-react'
 
 export default function App() {
@@ -772,6 +773,10 @@ export default function App() {
                   onUpdateSite={handleUpdateSavedSite}
                   user={user}
                 />
+              } />
+
+              <Route path="/statistics" element={
+                <Statistics items={items} />
               } />
             </Routes>
           </div>
