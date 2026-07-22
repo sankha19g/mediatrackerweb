@@ -721,7 +721,20 @@ export default function App() {
               } />
 
               <Route path="/settings" element={
-                <Settings onConfigChange={handleConfigChange} />
+                <Settings 
+                  user={user}
+                  onAuthSuccess={handleAuthSuccess}
+                  onLogout={handleLogout}
+                  onConfigChange={handleConfigChange}
+                  sources={sources}
+                  onAddSource={handleAddSource}
+                  onRemoveSource={handleRemoveSource}
+                  downloadSources={downloadSources}
+                  onAddDownloadSource={handleAddDownloadSource}
+                  onRemoveDownloadSource={handleRemoveDownloadSource}
+                  items={items}
+                  onAddImportedItems={handleAddImportedItems}
+                />
               } />
 
               <Route path="/auth" element={

@@ -104,22 +104,8 @@ export default function Sidebar({
 
 
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-6 mb-2 px-3">
-            Configuration
+            Settings & Control
           </div>
-
-          {isConnectedToFirebase && (
-            <button
-              onClick={() => handleLinkClick('auth')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-                activeView === 'auth'
-                  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              <span>{user ? 'Account Protection' : 'Sign In / Register'}</span>
-            </button>
-          )}
 
           <button
             onClick={() => handleLinkClick('settings')}
@@ -130,32 +116,7 @@ export default function Sidebar({
             }`}
           >
             <SettingsIcon className="w-4 h-4" />
-            <span>Developer Keys</span>
-          </button>
-
-          <button
-            onClick={() => handleLinkClick('sources')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-              activeView === 'sources'
-                ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-            }`}
-          >
-            <Play className="w-4 h-4" />
-            <span>Choose Sources</span>
-          </button>
-
-
-          <button
-            onClick={() => handleLinkClick('import_export')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-              activeView === 'import_export'
-                ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-            }`}
-          >
-            <UploadCloud className="w-4 h-4" />
-            <span>Import / Export</span>
+            <span>Settings</span>
           </button>
 
           {user && (
