@@ -464,6 +464,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const [activeSource, setActiveSource] = useState('')
   const [collectionDetails, setCollectionDetails] = useState(null)
   const [loadingCollection, setLoadingCollection] = useState(false)
+  const [recommendations, setRecommendations] = useState([])
+  const [similar, setSimilar] = useState([])
+  const recsScrollRef = useRef(null)
+  const similarScrollRef = useRef(null)
   const [selectedSeason, setSelectedSeason] = useState(1)
   const [selectedEpisode, setSelectedEpisode] = useState(1)
   const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false)
@@ -557,6 +561,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       setDetails(null)
       setCollectionDetails(null)
       setCurrentSeasonDetails(null)
+      setRecommendations([])
+      setSimilar([])
     }
     setIsTrailerOpen(false)
     setIsPlayerOpen(false)
@@ -591,6 +597,27 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     }
     loadCollection()
   }, [details?.belongs_to_collection?.id])
+
+  useEffect(() => {
+    const loadRecsAndSimilar = async () => {
+      if (item && item.tmdb_id && item.type !== 'game') {
+        try {
+          const [recsData, similarData] = await Promise.all([
+            fetchTMDB(`/${item.type}/${item.tmdb_id}/recommendations`),
+            fetchTMDB(`/${item.type}/${item.tmdb_id}/similar`)
+          ])
+          setRecommendations(recsData?.results || [])
+          setSimilar(similarData?.results || [])
+        } catch (error) {
+          console.error("Failed to fetch recommendations/similar items:", error)
+        }
+      } else {
+        setRecommendations([])
+        setSimilar([])
+      }
+    }
+    loadRecsAndSimilar()
+  }, [item?.tmdb_id, item?.type])
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -861,6 +888,17 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       const { scrollLeft, clientWidth } = collectionScrollRef.current
       const amount = clientWidth * 0.75
       collectionScrollRef.current.scrollTo({
+        left: direction === 'left' ? scrollLeft - amount : scrollLeft + amount,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  const scrollRow = (ref, direction) => {
+    if (ref.current) {
+      const { scrollLeft, clientWidth } = ref.current
+      const amount = clientWidth * 0.75
+      ref.current.scrollTo({
         left: direction === 'left' ? scrollLeft - amount : scrollLeft + amount,
         behavior: 'smooth'
       })
@@ -1884,6 +1922,190 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                               <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
                             </div>
                           )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recommended Row */}
+          {recommendations.length > 0 && (
+            <div className="mt-6 border-t border-slate-900 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                    Recommended For You
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Explore curated recommendations based on this title.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => scrollRow(recsScrollRef, 'left')}
+                    className="w-7 h-7 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 bg-[#101424] flex items-center justify-center transition-all cursor-pointer"
+                    title="Scroll Left"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollRow(recsScrollRef, 'right')}
+                    className="w-7 h-7 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 bg-[#101424] flex items-center justify-center transition-all cursor-pointer"
+                    title="Scroll Right"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <div
+                  ref={recsScrollRef}
+                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {recommendations.slice(0, 20).map(rec => {
+                    const releaseDate = rec.release_date || rec.first_air_date || ''
+                    const year = releaseDate ? releaseDate.split('-')[0] : 'TBA'
+                    const watchlistInstance = items.find(i => i.tmdb_id && i.tmdb_id.toString() === rec.id.toString() && i.type === (item.type || type) && i.status !== 'list_only')
+
+                    return (
+                      <div
+                        key={rec.id}
+                        onClick={() => {
+                          if (watchlistInstance) {
+                            navigate(`/media/${watchlistInstance.id}`)
+                          } else {
+                            navigate(`/explore/${item.type || type}/${rec.id}`)
+                          }
+                        }}
+                        className="flex-shrink-0 w-32 bg-[#0f1422] border border-slate-800 hover:border-slate-700/80 rounded-lg overflow-hidden shadow-lg group cursor-pointer"
+                      >
+                        <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
+                          {rec.poster_path ? (
+                            <img
+                              src={`https://image.tmdb.org/t/p/w185${rec.poster_path}`}
+                              alt={rec.title || rec.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-500 bg-slate-900 font-bold text-4xl rounded-none">
+                              {(rec.title || rec.name || 'U').charAt(0)}
+                            </div>
+                          )}
+
+                          {watchlistInstance && (
+                            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[10px] font-bold py-1 px-1.5 flex items-center justify-center gap-1 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).containerStyle}`}>
+                              <Check className={`w-3.5 h-3.5 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).iconColor}`} />
+                              <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2 min-h-[56px] flex flex-col justify-between">
+                          <p className="text-[10px] font-bold text-slate-200 line-clamp-2 leading-tight group-hover:text-violet-400 transition-colors" title={rec.title || rec.name}>
+                            {rec.title || rec.name}
+                          </p>
+                          <span className="text-[9px] text-slate-500 font-semibold">{year}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Similar Row */}
+          {similar.length > 0 && (
+            <div className="mt-6 border-t border-slate-900 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                    Similar Titles
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Discover movies and shows sharing a similar genre or style.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => scrollRow(similarScrollRef, 'left')}
+                    className="w-7 h-7 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 bg-[#101424] flex items-center justify-center transition-all cursor-pointer"
+                    title="Scroll Left"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollRow(similarScrollRef, 'right')}
+                    className="w-7 h-7 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 bg-[#101424] flex items-center justify-center transition-all cursor-pointer"
+                    title="Scroll Right"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <div
+                  ref={similarScrollRef}
+                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {similar.slice(0, 20).map(sim => {
+                    const releaseDate = sim.release_date || sim.first_air_date || ''
+                    const year = releaseDate ? releaseDate.split('-')[0] : 'TBA'
+                    const watchlistInstance = items.find(i => i.tmdb_id && i.tmdb_id.toString() === sim.id.toString() && i.type === (item.type || type) && i.status !== 'list_only')
+
+                    return (
+                      <div
+                        key={sim.id}
+                        onClick={() => {
+                          if (watchlistInstance) {
+                            navigate(`/media/${watchlistInstance.id}`)
+                          } else {
+                            navigate(`/explore/${item.type || type}/${sim.id}`)
+                          }
+                        }}
+                        className="flex-shrink-0 w-32 bg-[#0f1422] border border-slate-800 hover:border-slate-700/80 rounded-lg overflow-hidden shadow-lg group cursor-pointer"
+                      >
+                        <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
+                          {sim.poster_path ? (
+                            <img
+                              src={`https://image.tmdb.org/t/p/w185${sim.poster_path}`}
+                              alt={sim.title || sim.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-500 bg-slate-900 font-bold text-4xl rounded-none">
+                              {(sim.title || sim.name || 'U').charAt(0)}
+                            </div>
+                          )}
+
+                          {watchlistInstance && (
+                            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[10px] font-bold py-1 px-1.5 flex items-center justify-center gap-1 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).containerStyle}`}>
+                              <Check className={`w-3.5 h-3.5 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).iconColor}`} />
+                              <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2 min-h-[56px] flex flex-col justify-between">
+                          <p className="text-[10px] font-bold text-slate-200 line-clamp-2 leading-tight group-hover:text-violet-400 transition-colors" title={sim.title || sim.name}>
+                            {sim.title || sim.name}
+                          </p>
+                          <span className="text-[9px] text-slate-500 font-semibold">{year}</span>
                         </div>
                       </div>
                     )
