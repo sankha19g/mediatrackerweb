@@ -962,7 +962,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       borderClass: 'border-rose-500/20 hover:border-rose-500/50',
       badge: (
         <img
-          src="https://upload.wikimedia.org/wikipedia/commons/6/69/IMDB_Logo_2016.svg"
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Rotten_Tomatoes.svg/250px-Rotten_Tomatoes.svg.png"
           alt="Tomatometer"
           className="w-9 h-9 object-contain flex-shrink-0"
         />
@@ -1714,45 +1714,25 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   </p>
                 </div>
 
-                {/* Season Selection & Quick Increment */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={currentSeasonNum}
-                    onChange={(e) => {
-                      const sNum = parseInt(e.target.value, 10)
-                      const sObj = seasons.find(s => s.season_number === sNum)
-                      if (sObj && !item.isExplore) {
-                        handleUpdateEpisodes(sNum, 0, sObj.episode_count || 1)
-                      }
-                    }}
-                    className="bg-[#101424] border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
-                  >
-                    {seasons.map(s => (
-                      <option key={s.season_number} value={s.season_number}>
-                        {s.name || `Season ${s.season_number}`} ({s.episode_count} eps)
-                      </option>
-                    ))}
-                  </select>
-
-                  {!item.isExplore && currentSeason && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.max(0, currentEpisodesWatched - 1), currentSeason.episode_count || 1)}
-                        disabled={currentEpisodesWatched <= 0}
-                        className="bg-[#101424] hover:bg-[#181e36] disabled:opacity-40 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                      >
-                        -1 Ep
-                      </button>
-                      <button
-                        onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.min(currentSeason.episode_count || 1, currentEpisodesWatched + 1), currentSeason.episode_count || 1)}
-                        disabled={currentEpisodesWatched >= (currentSeason.episode_count || 1)}
-                        className="bg-[#6332f6] hover:bg-[#5223e0] disabled:opacity-40 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-purple-600/30"
-                      >
-                        +1 Ep
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* Quick Increment */}
+                {!item.isExplore && currentSeason && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.max(0, currentEpisodesWatched - 1), currentSeason.episode_count || 1)}
+                      disabled={currentEpisodesWatched <= 0}
+                      className="bg-[#101424] hover:bg-[#181e36] disabled:opacity-40 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      -1 Ep
+                    </button>
+                    <button
+                      onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.min(currentSeason.episode_count || 1, currentEpisodesWatched + 1), currentSeason.episode_count || 1)}
+                      disabled={currentEpisodesWatched >= (currentSeason.episode_count || 1)}
+                      className="bg-[#6332f6] hover:bg-[#5223e0] disabled:opacity-40 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-purple-600/30"
+                    >
+                      +1 Ep
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Overall Show Progress Bar */}
@@ -1878,7 +1858,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                             navigate(`/explore/movie/${part.id}`)
                           }
                         }}
-                        className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg flex flex-col group ${isCurrent
+                        className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg group ${isCurrent
                           ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
                           : 'border-slate-800 hover:border-slate-700/80 cursor-pointer'
                           }`}
@@ -1909,15 +1889,6 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                               <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
                             </div>
                           )}
-                        </div>
-
-                        <div className="p-2.5 flex flex-col flex-grow justify-between min-h-[64px] bg-gradient-to-b from-[#0f1422] to-[#070b13]">
-                          <span className={`text-[10px] font-bold line-clamp-2 w-full ${isCurrent ? 'text-violet-400' : 'text-slate-200'}`} title={part.title}>
-                            {part.title}
-                          </span>
-                          <div className="flex items-center justify-between mt-1 text-[9px] text-slate-500 font-semibold">
-                            <span>{partYear}</span>
-                          </div>
                         </div>
                       </div>
                     )

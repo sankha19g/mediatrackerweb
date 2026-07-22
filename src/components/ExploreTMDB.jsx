@@ -264,25 +264,6 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
                   </div>
                 )}
               </div>
-
-              {/* Card Meta */}
-              <div className="p-3 flex flex-col flex-1 justify-between bg-slate-900/60">
-                <div>
-                  <h3 className="font-semibold text-xs sm:text-sm text-slate-200 line-clamp-1 group-hover/card:text-violet-400 transition-colors">
-                    {isMovie ? item.title : item.name}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{releaseYear}</p>
-                </div>
-
-                {!isSelectMode && !watched && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); openAddDialog(item) }}
-                    className="mt-2.5 w-full bg-slate-800 hover:bg-violet-600 text-slate-300 hover:text-white text-[11px] font-bold py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border border-slate-700/60 hover:border-violet-500"
-                  >
-                    <Plus className="w-3 h-3" /> Add to List
-                  </button>
-                )}
-              </div>
             </div>
           )
         })}
@@ -730,7 +711,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
               return (
                 <div
                   key={cardKey}
-                  className={`group/card relative bg-slate-900/40 border border-slate-800 hover:border-slate-700/80 hover:-translate-y-1 rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col ${
+                  className={`group/card relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${
                     fadeWatched && watched ? 'opacity-30 grayscale-[30%] brightness-[60%] hover:opacity-100 hover:grayscale-0 hover:brightness-100' : ''
                   }`}
                 >
@@ -767,35 +748,6 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
                         <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
                         <span>{getStatusLabelAndStyle(watched.status).label}</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Card Meta */}
-                  <div className="p-3 flex flex-col flex-1 justify-between bg-slate-900/60">
-                    <div>
-                      <h3 className="font-semibold text-xs sm:text-sm text-slate-200 line-clamp-1 group-hover/card:text-violet-400 transition-colors">
-                        {isMovie ? item.title : item.name}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{releaseYear}</p>
-                    </div>
-
-                    {!watched && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onAddItem({
-                          title: isMovie ? (item.title || item.name) : (item.name || item.title),
-                          type: mediaType,
-                          tmdb_id: item.id.toString(),
-                          poster_path: item.poster_path,
-                          review: '',
-                          release_year: releaseYear,
-                          status: 'completed',
-                          country: 'US',
-                          original_language: item.original_language || 'en'
-                        })}}
-                        className="mt-2.5 w-full bg-slate-800 hover:bg-violet-600 text-slate-300 hover:text-white text-[11px] font-bold py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border border-slate-700/60 hover:border-violet-500"
-                      >
-                        <Plus className="w-3 h-3" /> Add to List
-                      </button>
                     )}
                   </div>
                 </div>
@@ -1330,25 +1282,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
               {item.name || item.title}
             </h3>
           </div>
-        ) : (
-          <div className="p-3 flex flex-col flex-grow justify-between bg-slate-900/60 min-h-[92px]">
-            <div>
-              <h3 className="font-semibold text-xs sm:text-sm text-slate-200 line-clamp-1 group-hover/card:text-violet-400 transition-colors">
-                {item.title || item.name}
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">{releaseYear}</p>
-            </div>
-
-            {!isSelectMode && !watched && (
-              <button
-                onClick={(e) => { e.stopPropagation(); openAddDialog(item) }}
-                className="mt-2.5 w-full bg-slate-800 hover:bg-violet-600 text-slate-300 hover:text-white text-[11px] font-bold py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border border-slate-700/60 hover:border-violet-500"
-              >
-                <Plus className="w-3 h-3" /> Add to List
-              </button>
-            )}
-          </div>
-        )}
+        ) : null}
       </div>
     )
   }

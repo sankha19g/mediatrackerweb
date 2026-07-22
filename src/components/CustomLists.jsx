@@ -1,7 +1,63 @@
 import React, { useState, useEffect } from 'react'
-import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown } from 'lucide-react'
+import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square } from 'lucide-react'
 import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList, updateFirebaseList } from '../lib/firebase'
-import { getPosterUrl, fetchTMDB } from '../lib/tmdb'
+import { getPosterUrl, fetchTMDB, searchGames } from '../lib/tmdb'
+
+const getStatusLabelAndStyle = (status, type) => {
+  if (!status || status === 'list_only') return null
+  const isGame = type === 'game'
+  switch (status) {
+    case 'completed':
+      return {
+        label: isGame ? 'Beaten' : 'Watched',
+        containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+        iconColor: 'text-emerald-400'
+      }
+    case 'watching':
+      return {
+        label: isGame ? 'Playing' : 'Watching',
+        containerStyle: 'bg-violet-950/90 border-violet-500/30 text-violet-300',
+        iconColor: 'text-violet-400'
+      }
+    case 'planned':
+      return {
+        label: isGame ? 'Plan to Play' : 'Plan to Watch',
+        containerStyle: 'bg-sky-950/90 border-sky-500/30 text-sky-300',
+        iconColor: 'text-sky-400'
+      }
+    case 'onhold':
+    case 'paused':
+      return {
+        label: 'On Hold',
+        containerStyle: 'bg-amber-950/90 border-amber-500/30 text-amber-300',
+        iconColor: 'text-amber-400'
+      }
+    case 'dropped':
+      return {
+        label: 'Dropped',
+        containerStyle: 'bg-rose-950/90 border-rose-500/30 text-rose-300',
+        iconColor: 'text-rose-400'
+      }
+    case 'backlog':
+      return {
+        label: 'Backlog',
+        containerStyle: 'bg-slate-900/90 border-slate-700/30 text-slate-300',
+        iconColor: 'text-slate-400'
+      }
+    case 'pending':
+      return {
+        label: type === 'tv' ? 'Up Next' : 'Pending',
+        containerStyle: 'bg-indigo-950/90 border-indigo-500/30 text-indigo-300',
+        iconColor: 'text-indigo-400'
+      }
+    default:
+      return {
+        label: isGame ? 'In Library' : 'Watched',
+        containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+        iconColor: 'text-emerald-400'
+      }
+  }
+}
 
 export default function CustomLists({ typeFilter, user, watchlistItems, onItemClick, onAddItem, onAddItems, onUpdateItem }) {
   const [lists, setLists] = useState([])
@@ -33,6 +89,23 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   
   const isCloud = isFirebaseConfigured() && user
 
+  // Image Picker state variables
+  const [showImagePicker, setShowImagePicker] = useState(false)
+  const [imagePickerTarget, setImagePickerTarget] = useState(null) // 'thumbnail' | 'banner'
+  const [pickerImages, setPickerImages] = useState([])
+  const [loadingPickerImages, setLoadingPickerImages] = useState(false)
+
+  // Bulk delete states
+  const [isDeleteMode, setIsDeleteMode] = useState(false)
+  const [selectedDeleteIds, setSelectedDeleteIds] = useState([])
+
+  // Bulk add states
+  const [showAddPopup, setShowAddPopup] = useState(false)
+  const [popupSearchQuery, setPopupSearchQuery] = useState('')
+  const [popupSearchResults, setPopupSearchResults] = useState([])
+  const [searchingPopup, setSearchingPopup] = useState(false)
+  const [selectedPopupItems, setSelectedPopupItems] = useState({})
+
   // Auto-migrate existing custom list items with 'planned' status to 'list_only'
   useEffect(() => {
     if (lists.length === 0 || watchlistItems.length === 0 || !onUpdateItem) return
@@ -49,6 +122,13 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   useEffect(() => {
     fetchLists()
   }, [typeFilter, user])
+
+  // Load suggestions when Add Popup is opened
+  useEffect(() => {
+    if (showAddPopup) {
+      loadInitialPopupSuggestions()
+    }
+  }, [showAddPopup])
 
   const fetchLists = async () => {
     setLoading(true)
@@ -608,6 +688,247 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
   const rawListItems = activeList ? getListItems(activeList.item_ids) : []
 
+  // Image Picker handlers
+  const handleOpenImagePicker = async (target) => {
+    setImagePickerTarget(target)
+    setShowImagePicker(true)
+    setLoadingPickerImages(true)
+    setPickerImages([])
+    
+    try {
+      const items = rawListItems.filter(i => i.tmdb_id)
+      
+      const posters = items.map(item => ({
+        src: getPosterUrl(item.poster_path),
+        title: `${item.title} (Poster)`,
+        itemTitle: item.title,
+        type: 'poster'
+      })).filter(img => img.src && !img.src.includes('placehold.co') && !img.src.includes('No+Poster'))
+
+      setPickerImages(posters)
+
+      const fetchedBackdrops = await Promise.all(
+        items.map(async (item) => {
+          if (item.type !== 'movie' && item.type !== 'tv') return null
+          try {
+            const endpoint = item.type === 'movie' ? `/movie/${item.tmdb_id}` : `/tv/${item.tmdb_id}`
+            const details = await fetchTMDB(endpoint)
+            if (details && details.backdrop_path) {
+              return {
+                src: `https://image.tmdb.org/t/p/w1280${details.backdrop_path}`,
+                title: `${item.title} (Banner)`,
+                itemTitle: item.title,
+                type: 'banner'
+              }
+            }
+          } catch (e) {
+            console.error('Failed to fetch backdrop for picker:', e)
+          }
+          return null
+        })
+      )
+
+      const backdrops = fetchedBackdrops.filter(Boolean)
+      setPickerImages([...posters, ...backdrops])
+    } catch (err) {
+      console.error('Error loading picker images:', err)
+    } finally {
+      setLoadingPickerImages(false)
+    }
+  }
+
+  const handleSelectImage = (src) => {
+    if (imagePickerTarget === 'thumbnail') {
+      setEditThumbnailUrl(src)
+    } else if (imagePickerTarget === 'banner') {
+      setEditBannerUrl(src)
+    }
+    setShowImagePicker(false)
+  }
+
+  // Bulk remove items
+  const handleRemoveItems = async (itemIdsToRemove) => {
+    if (!activeListId || itemIdsToRemove.length === 0) return
+
+    const targetList = lists.find(l => l.id === activeListId)
+    if (!targetList) return
+
+    const updatedIds = targetList.item_ids.filter(id => !itemIdsToRemove.includes(id))
+
+    try {
+      if (isCloud && !activeListId.startsWith('local_list_')) {
+        await updateFirebaseListItems(activeListId, updatedIds)
+      } else {
+        const localListsRaw = localStorage.getItem('local_custom_lists')
+        if (localListsRaw) {
+          const parsed = JSON.parse(localListsRaw)
+          const updated = parsed.map(list => 
+            list.id === activeListId ? { ...list, item_ids: updatedIds } : list
+          )
+          localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+        }
+      }
+
+      setLists(prev => prev.map(list => 
+        list.id === activeListId ? { ...list, item_ids: updatedIds } : list
+      ))
+      setError('')
+      setIsDeleteMode(false)
+      setSelectedDeleteIds([])
+    } catch (err) {
+      console.error('Failed to remove items from list:', err)
+      setError('Could not remove items from list.')
+    }
+  }
+
+  // Popup Search Handlers
+  const handlePopupSearch = async (queryText) => {
+    setPopupSearchQuery(queryText)
+    if (!queryText.trim()) {
+      loadInitialPopupSuggestions()
+      return
+    }
+    setSearchingPopup(true)
+    try {
+      if (typeFilter === 'game') {
+        const results = await searchGames(queryText)
+        setPopupSearchResults(results.map(g => ({ ...g, media_type: 'game' })))
+      } else {
+        const endpoint = typeFilter === 'movie' ? '/search/movie' : '/search/tv'
+        const data = await fetchTMDB(endpoint, { query: queryText })
+        if (data && data.results) {
+          setPopupSearchResults(data.results.map(i => ({ ...i, media_type: typeFilter })))
+        } else {
+          setPopupSearchResults([])
+        }
+      }
+    } catch (err) {
+      console.error('Failed to search in custom list add popup:', err)
+    } finally {
+      setSearchingPopup(false)
+    }
+  }
+
+  const loadInitialPopupSuggestions = async () => {
+    setSearchingPopup(true)
+    try {
+      if (typeFilter === 'game') {
+        const results = await searchGames('')
+        setPopupSearchResults(results.map(g => ({ ...g, media_type: 'game' })))
+      } else {
+        const endpoint = typeFilter === 'movie' ? '/movie/popular' : '/tv/popular'
+        const data = await fetchTMDB(endpoint)
+        if (data && data.results) {
+          setPopupSearchResults(data.results.map(i => ({ ...i, media_type: typeFilter })))
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load initial popup suggestions:', err)
+    } finally {
+      setSearchingPopup(false)
+    }
+  }
+
+  const handleAddItemsToList = async (selectedItemsArray) => {
+    if (!activeListId || selectedItemsArray.length === 0) return
+
+    const targetList = lists.find(l => l.id === activeListId)
+    if (!targetList) return
+
+    setImporting(true)
+    setImportStatus('Adding selected items...')
+    
+    try {
+      const addedItemIds = []
+      const itemsToCreate = []
+
+      for (const tmdbItem of selectedItemsArray) {
+        const isGame = typeFilter === 'game'
+        const itemIdStr = tmdbItem.id.toString()
+        const existing = watchlistItems.find(w => 
+          w.type === typeFilter && 
+          (isGame ? w.id === itemIdStr || w.tmdb_id === itemIdStr : w.tmdb_id === itemIdStr)
+        )
+
+        if (existing) {
+          addedItemIds.push(existing.id)
+          if (onUpdateItem && (existing.status === 'planned' || !existing.status)) {
+            onUpdateItem(existing.id, { status: 'list_only' })
+          }
+        } else {
+          const releaseDate = tmdbItem.release_date || tmdbItem.first_air_date || ''
+          const releaseYear = releaseDate ? releaseDate.split('-')[0] : (tmdbItem.release_year || '')
+          
+          const getCountryCode = () => {
+            if (tmdbItem.origin_country && Array.isArray(tmdbItem.origin_country) && tmdbItem.origin_country.length > 0) {
+              return tmdbItem.origin_country[0]
+            }
+            return 'US'
+          }
+
+          itemsToCreate.push({
+            title: tmdbItem.title || tmdbItem.name,
+            type: typeFilter,
+            tmdb_id: itemIdStr,
+            poster_path: tmdbItem.poster_path || tmdbItem.cover_path || '',
+            release_year: releaseYear.toString(),
+            status: 'list_only',
+            country: getCountryCode(),
+            original_language: tmdbItem.original_language || 'en',
+            review: ''
+          })
+        }
+      }
+
+      if (itemsToCreate.length > 0) {
+        if (onAddItems) {
+          const createdItems = await onAddItems(itemsToCreate)
+          if (createdItems && createdItems.length > 0) {
+            addedItemIds.push(...createdItems.map(i => i.id))
+          }
+        } else if (onAddItem) {
+          for (const item of itemsToCreate) {
+            const created = await onAddItem(item)
+            if (created && created.id) {
+              addedItemIds.push(created.id)
+            }
+          }
+        }
+      }
+
+      const finalItemIds = Array.from(new Set([...targetList.item_ids, ...addedItemIds]))
+
+      if (isCloud && !activeListId.startsWith('local_list_')) {
+        await updateFirebaseListItems(activeListId, finalItemIds)
+      } else {
+        const localListsRaw = localStorage.getItem('local_custom_lists')
+        if (localListsRaw) {
+          const parsed = JSON.parse(localListsRaw)
+          const updated = parsed.map(list => 
+            list.id === activeListId ? { ...list, item_ids: finalItemIds } : list
+          )
+          localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+        }
+      }
+
+      setLists(prev => prev.map(list => 
+        list.id === activeListId ? { ...list, item_ids: finalItemIds } : list
+      ))
+
+      setSelectedPopupItems({})
+      setShowAddPopup(false)
+      setPopupSearchQuery('')
+      setPopupSearchResults([])
+      setError('')
+    } catch (err) {
+      console.error('Failed to add items to list:', err)
+      setError('Could not add selected items to list.')
+    } finally {
+      setImporting(false)
+      setImportStatus('')
+    }
+  }
+
   // Filter items in active list by search query
   const filteredListItems = rawListItems.filter(item => 
     item.title.toLowerCase().includes(listSearchQuery.toLowerCase())
@@ -710,14 +1031,59 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 )}
               </div>
 
-              <div className="flex items-center gap-3 self-start md:self-end">
-                <button
-                  onClick={handleOpenEditModal}
-                  className="p-2.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/45 text-slate-350 hover:text-white rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center"
-                  title="List Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
+              <div className="flex items-center gap-2 self-start md:self-end">
+                {isDeleteMode ? (
+                  <>
+                    <button
+                      onClick={() => handleRemoveItems(selectedDeleteIds)}
+                      disabled={selectedDeleteIds.length === 0}
+                      className="px-3.5 py-2 bg-rose-650 hover:bg-rose-600 disabled:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5 border border-rose-500/20"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Remove ({selectedDeleteIds.length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsDeleteMode(false);
+                        setSelectedDeleteIds([]);
+                      }}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all border border-slate-700/60 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Add Items (+) Button */}
+                    <button
+                      onClick={() => setShowAddPopup(true)}
+                      className="p-2.5 bg-violet-650 hover:bg-violet-600 text-white rounded-xl transition-all shadow-lg shadow-violet-650/25 border border-violet-500/35 cursor-pointer flex items-center justify-center"
+                      title="Add Items"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+
+                    {/* Delete Logo (Trash) Button */}
+                    <button
+                      onClick={() => {
+                        setIsDeleteMode(true);
+                        setSelectedDeleteIds([]);
+                      }}
+                      className="p-2.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/45 text-slate-350 hover:text-rose-455 hover:border-rose-500/30 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center"
+                      title="Remove Items"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
+                    {/* Settings Button */}
+                    <button
+                      onClick={handleOpenEditModal}
+                      className="p-2.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/45 text-slate-350 hover:text-white rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center"
+                      title="List Settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -800,16 +1166,43 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                   {sortedListItems.map(item => {
                     const isWatched = item.status === 'completed'
+                    const statusInfo = getStatusLabelAndStyle(item.status, item.type)
+                    const isDeletingSelected = selectedDeleteIds.includes(item.id)
                     return (
                       <div 
                         key={item.id}
-                        className={`group relative bg-slate-900/30 border border-slate-800 hover:border-slate-700/50 rounded-xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full ${
-                          fadeWatched && isWatched ? 'opacity-35 grayscale scale-95 hover:opacity-90 hover:grayscale-0 hover:scale-100' : ''
+                        onClick={() => {
+                          if (isDeleteMode) {
+                            setSelectedDeleteIds(prev => 
+                              prev.includes(item.id) 
+                                ? prev.filter(id => id !== item.id) 
+                                : [...prev, item.id]
+                            )
+                          }
+                        }}
+                        className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${
+                          isDeleteMode 
+                            ? isDeletingSelected
+                              ? 'border-rose-500 ring-2 ring-rose-500/20'
+                              : 'border-slate-800 hover:border-rose-500/40'
+                            : 'border-slate-800 hover:border-slate-700/50'
+                        } ${
+                          fadeWatched && isWatched && !isDeleteMode ? 'opacity-35 grayscale scale-95 hover:opacity-90 hover:grayscale-0 hover:scale-100' : ''
                         }`}
                       >
                         <div 
                           className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                          onClick={() => onItemClick && onItemClick(item)}
+                          onClick={() => {
+                            if (isDeleteMode) {
+                              setSelectedDeleteIds(prev => 
+                                prev.includes(item.id) 
+                                  ? prev.filter(id => id !== item.id) 
+                                  : [...prev, item.id]
+                              )
+                            } else {
+                              onItemClick && onItemClick(item)
+                            }
+                          }}
                         >
                           <img
                             src={getPosterUrl(item.poster_path)}
@@ -817,12 +1210,24 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             loading="lazy"
                           />
-                        </div>
+                          {statusInfo && !isDeleteMode && (
+                            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${statusInfo.containerStyle}`}>
+                              <Check className={`w-3.5 h-3.5 ${statusInfo.iconColor}`} />
+                              <span>{statusInfo.label}</span>
+                            </div>
+                          )}
 
-                        <div className="p-3 flex-grow flex flex-col justify-between">
-                          <h4 className="font-semibold text-xs text-slate-200 line-clamp-1 group-hover:text-white transition-colors">
-                            {item.title}
-                          </h4>
+                          {isDeleteMode && (
+                            <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[1px] flex items-center justify-center">
+                              <div className="p-2 rounded-full bg-slate-900 border border-slate-700 shadow-md">
+                                {isDeletingSelected ? (
+                                  <CheckSquare className="w-6 h-6 text-rose-500 fill-rose-500/20" />
+                                ) : (
+                                  <Square className="w-6 h-6 text-slate-400" />
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
@@ -1086,9 +1491,19 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                      Poster/Thumbnail Image Link (Optional)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        Poster/Thumbnail Image Link (Optional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenImagePicker('thumbnail')}
+                        className="text-violet-400 hover:text-violet-300 flex items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer"
+                        title="Choose from list items"
+                      >
+                        <Info className="w-3.5 h-3.5" /> Choose from items
+                      </button>
+                    </div>
                     <input
                       type="url"
                       disabled={importing}
@@ -1100,9 +1515,19 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                      Banner Image Link (Optional)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        Banner Image Link (Optional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenImagePicker('banner')}
+                        className="text-violet-400 hover:text-violet-300 flex items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer"
+                        title="Choose from list items"
+                      >
+                        <Info className="w-3.5 h-3.5" /> Choose from items
+                      </button>
+                    </div>
                     <input
                       type="url"
                       disabled={importing}
@@ -1168,6 +1593,270 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Image Picker Modal */}
+      {showImagePicker && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl relative">
+            <button
+              type="button"
+              onClick={() => setShowImagePicker(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-bold text-white mb-1">
+              Select {imagePickerTarget === 'thumbnail' ? 'Poster/Thumbnail' : 'Banner'}
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Choose an image from the items in this list to set as the list {imagePickerTarget === 'thumbnail' ? 'cover' : 'banner'}.
+            </p>
+
+            {loadingPickerImages && pickerImages.length === 0 ? (
+              <div className="flex-grow flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+                <div className="w-10 h-10 border-2 border-violet-500/20 border-t-violet-500 rounded-full animate-spin" />
+                <span className="text-xs font-semibold text-slate-300 animate-pulse text-center">
+                  Loading images from TMDB...
+                </span>
+              </div>
+            ) : pickerImages.length === 0 ? (
+              <div className="flex-grow flex flex-col items-center justify-center py-20 text-slate-500 text-center">
+                <Info className="w-10 h-10 text-slate-700 mb-2" />
+                <p className="text-sm font-semibold">No images found</p>
+                <p className="text-xs mt-1">Make sure your list has items with poster links.</p>
+              </div>
+            ) : (
+              <div className="flex-col flex flex-grow overflow-hidden">
+                <div className="overflow-y-auto pr-1 flex-grow scrollbar-thin pb-4 space-y-6">
+                  {/* Banners Section */}
+                  {pickerImages.filter(img => img.type === 'banner').length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                        Banners / Backdrops
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {pickerImages.filter(img => img.type === 'banner').map((img, idx) => (
+                          <div
+                            key={`banner_${idx}`}
+                            onClick={() => handleSelectImage(img.src)}
+                            className="group/picker relative rounded-xl overflow-hidden border border-slate-800 hover:border-violet-500 bg-slate-950/60 aspect-[16/9] cursor-pointer transition-all duration-300 shadow-md hover:scale-[1.02]"
+                          >
+                            <img
+                              src={img.src}
+                              alt={img.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover/picker:scale-105"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent p-2 text-center">
+                              <p className="text-[10px] font-bold text-slate-200 line-clamp-1">
+                                {img.itemTitle}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Posters Section */}
+                  {pickerImages.filter(img => img.type === 'poster').length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                        Posters
+                      </h4>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                        {pickerImages.filter(img => img.type === 'poster').map((img, idx) => (
+                          <div
+                            key={`poster_${idx}`}
+                            onClick={() => handleSelectImage(img.src)}
+                            className="group/picker relative rounded-xl overflow-hidden border border-slate-800 hover:border-violet-500 bg-slate-950/60 aspect-[2/3] cursor-pointer transition-all duration-300 shadow-md hover:scale-[1.02]"
+                          >
+                            <img
+                              src={img.src}
+                              alt={img.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover/picker:scale-105"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent p-2 text-center">
+                              <p className="text-[10px] font-bold text-slate-200 line-clamp-1">
+                                {img.itemTitle}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {loadingPickerImages && (
+                  <div className="py-2 text-center text-xs font-semibold text-violet-400 animate-pulse">
+                    Loading backdrops...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Items Popup Modal */}
+      {showAddPopup && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl relative animate-scale-up">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddPopup(false);
+                setPopupSearchQuery('');
+                setPopupSearchResults([]);
+                setSelectedPopupItems({});
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-xl font-bold text-white mb-1">
+              Add Items to {activeList.name}
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Search TMDB to find and select multiple {getTypeLabelPlural().toLowerCase()} to add to this list.
+            </p>
+
+            {/* Search Input Area */}
+            <div className="mb-6">
+              <input
+                type="text"
+                value={popupSearchQuery}
+                onChange={(e) => handlePopupSearch(e.target.value)}
+                placeholder={`Search for ${getTypeLabelPlural().toLowerCase()}...`}
+                className="w-full bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-550 transition-colors"
+              />
+            </div>
+
+            {/* Results Grid */}
+            <div className="flex-grow overflow-y-auto pr-1 scrollbar-thin pb-4">
+              {searchingPopup ? (
+                <div className="h-48 flex flex-col items-center justify-center gap-3 text-slate-400">
+                  <div className="w-8 h-8 border-2 border-violet-500/20 border-t-violet-500 rounded-full animate-spin" />
+                  <span className="text-xs font-semibold text-slate-355 animate-pulse">
+                    Searching TMDB...
+                  </span>
+                </div>
+              ) : popupSearchResults.length === 0 ? (
+                <div className="h-48 flex flex-col items-center justify-center text-slate-500 text-center">
+                  <FolderOpen className="w-10 h-10 text-slate-700 mb-2" />
+                  <p className="text-sm font-semibold">No results found</p>
+                  <p className="text-xs mt-1">Try searching for a different title.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {popupSearchResults.map((item) => {
+                    const isAlreadyInList = activeList && rawListItems.some(li => li.tmdb_id === item.id.toString())
+                    const isSelected = !!selectedPopupItems[item.id]
+                    const cardImage = getPosterUrl(item.poster_path || item.cover_path)
+                    const releaseDate = item.release_date || item.first_air_date || ''
+                    const releaseYear = releaseDate ? releaseDate.split('-')[0] : (item.release_year || 'N/A')
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (isAlreadyInList) return
+                          setSelectedPopupItems(prev => {
+                            const next = { ...prev }
+                            if (isSelected) {
+                              delete next[item.id]
+                            } else {
+                              next[item.id] = item
+                            }
+                            return next
+                          })
+                        }}
+                        className={`group/item relative bg-slate-950/40 border rounded-xl overflow-hidden shadow-md transition-all duration-300 flex flex-col h-full cursor-pointer select-none ${
+                          isAlreadyInList
+                            ? 'opacity-40 border-slate-900 cursor-not-allowed'
+                            : isSelected
+                            ? 'border-violet-500 ring-2 ring-violet-500/20'
+                            : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Poster Image */}
+                        <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
+                          <img
+                            src={cardImage}
+                            alt={item.title || item.name}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-105"
+                            loading="lazy"
+                          />
+
+                          {/* Selection Overlay */}
+                          {!isAlreadyInList && (
+                            <div className="absolute top-2 right-2 z-10">
+                              <div className={`p-1.5 rounded-full border shadow-md transition-colors ${
+                                isSelected 
+                                  ? 'bg-violet-600 border-violet-500 text-white' 
+                                  : 'bg-slate-950/80 border-slate-700 text-slate-400 group-hover/item:text-slate-200'
+                              }`}>
+                                <Check className="w-3.5 h-3.5" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Already in list label */}
+                          {isAlreadyInList && (
+                            <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-2 text-center">
+                              <span className="text-[10px] font-black uppercase px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300 tracking-wider">
+                                Already In List
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Title Info */}
+                        <div className="p-2.5 flex-grow flex flex-col justify-between bg-slate-900/60">
+                          <div>
+                            <h4 className="font-semibold text-xs text-slate-200 line-clamp-1 group-hover/item:text-violet-400 transition-colors">
+                              {item.title || item.name}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 mt-0.5">{releaseYear}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions Bar */}
+            <div className="flex gap-3 mt-6 border-t border-slate-800/60 pt-4 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddPopup(false);
+                  setPopupSearchQuery('');
+                  setPopupSearchResults([]);
+                  setSelectedPopupItems({});
+                }}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-350 font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={importing || Object.keys(selectedPopupItems).length === 0}
+                onClick={() => handleAddItemsToList(Object.values(selectedPopupItems))}
+                className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {importing ? 'Adding...' : `Add Selected (${Object.keys(selectedPopupItems).length})`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

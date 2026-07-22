@@ -6,7 +6,8 @@ import {
   signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInAnonymously
 } from 'firebase/auth'
 import { 
   getFirestore,
@@ -56,6 +57,46 @@ export const getFirebaseAuth = () => auth
 export const getFirebaseDb = () => db
 
 // Auth Helpers
+let qrUser = null
+try {
+  const savedQrUser = localStorage.getItem('qr_user_session')
+  if (savedQrUser) {
+    qrUser = JSON.parse(savedQrUser)
+  }
+} catch (e) {
+  console.error("Failed to load QR user session:", e)
+}
+
+let authListeners = []
+
+export const setQrUser = (user) => {
+  qrUser = user
+  if (user) {
+    localStorage.setItem('qr_user_session', JSON.stringify(user))
+  } else {
+    localStorage.removeItem('qr_user_session')
+  }
+  authListeners.forEach(listener => {
+    try {
+      listener(user)
+    } catch (e) {
+      console.error("Error in auth listener:", e)
+    }
+  })
+}
+
+export const firebaseSignInAnonymously = async () => {
+  const authInstance = getFirebaseAuth()
+  if (!authInstance) throw new Error("Firebase Auth not initialized")
+  try {
+    const userCredential = await signInAnonymously(authInstance)
+    return userCredential.user
+  } catch (err) {
+    console.warn("Failed to sign in anonymously (Anonymous Auth might be disabled in Firebase Console):", err)
+    return null
+  }
+}
+
 export const firebaseSignUp = async (email, password) => {
   const authInstance = getFirebaseAuth()
   if (!authInstance) throw new Error("Firebase Auth not initialized")
@@ -83,13 +124,31 @@ export const firebaseSignInWithGoogle = async () => {
 export const firebaseSignOut = async () => {
   const authInstance = getFirebaseAuth()
   if (!authInstance) throw new Error("Firebase Auth not initialized")
+  setQrUser(null)
   await signOut(authInstance)
 }
 
 export const onFirebaseAuthStateChanged = (callback) => {
+  authListeners.push(callback)
+  
+  if (qrUser) {
+    callback(qrUser)
+  }
+  
   const authInstance = getFirebaseAuth()
-  if (!authInstance) return () => {}
-  return onAuthStateChanged(authInstance, callback)
+  let unsubscribeAuth = () => {}
+  if (authInstance) {
+    unsubscribeAuth = onAuthStateChanged(authInstance, (user) => {
+      if (!qrUser) {
+        callback(user)
+      }
+    })
+  }
+  
+  return () => {
+    authListeners = authListeners.filter(l => l !== callback)
+    unsubscribeAuth()
+  }
 }
 
 // Firestore Helpers

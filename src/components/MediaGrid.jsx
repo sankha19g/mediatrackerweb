@@ -656,7 +656,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
             return (
             <div 
               key={cardId}
-              className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col h-full ${
+              className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${
                 isSelectMode && selectedIds.includes(cardId)
                   ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
                   : 'border-slate-800 hover:border-slate-700/50'
@@ -708,29 +708,6 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 {isTV && !isSelectMode && totalSeas > 1 && (
                   <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
                     {totalSeas}S
-                  </div>
-                )}
-              </div>
-
-              {/* Card Footer Details */}
-              <div className="p-3 flex flex-col flex-grow justify-between">
-                <h3 className="font-semibold text-sm text-slate-200 line-clamp-1 group-hover:text-white transition-colors">
-                  {item.title}
-                </h3>
-
-                {!isTV && (
-                  <div className="flex items-center justify-between text-xs text-slate-500 mt-auto">
-                    {item.type === 'game' ? (
-                      <span className="flex items-center gap-0.5">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {item.release_year || 'N/A'}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    {item.review && (
-                      <MessageSquare className="w-3.5 h-3.5 text-slate-400" title="Has written review" />
-                    )}
                   </div>
                 )}
               </div>
