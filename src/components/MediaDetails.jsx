@@ -2009,12 +2009,6 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                             </div>
                           )}
                         </div>
-                        <div className="p-2 min-h-[56px] flex flex-col justify-between">
-                          <p className="text-[10px] font-bold text-slate-200 line-clamp-2 leading-tight group-hover:text-violet-400 transition-colors" title={rec.title || rec.name}>
-                            {rec.title || rec.name}
-                          </p>
-                          <span className="text-[9px] text-slate-500 font-semibold">{year}</span>
-                        </div>
                       </div>
                     )
                   })}
@@ -2100,12 +2094,6 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                               <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
                             </div>
                           )}
-                        </div>
-                        <div className="p-2 min-h-[56px] flex flex-col justify-between">
-                          <p className="text-[10px] font-bold text-slate-200 line-clamp-2 leading-tight group-hover:text-violet-400 transition-colors" title={sim.title || sim.name}>
-                            {sim.title || sim.name}
-                          </p>
-                          <span className="text-[9px] text-slate-500 font-semibold">{year}</span>
                         </div>
                       </div>
                     )
