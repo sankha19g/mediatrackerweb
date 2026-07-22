@@ -68,6 +68,60 @@ const getItemMediaType = (item) => {
   return item.title ? 'movie' : 'tv'
 }
 
+const getStatusLabelAndStyle = (status) => {
+  switch (status) {
+    case 'completed':
+      return {
+        label: 'Watched',
+        containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+        iconColor: 'text-emerald-400'
+      }
+    case 'watching':
+      return {
+        label: 'Watching',
+        containerStyle: 'bg-violet-950/90 border-violet-500/30 text-violet-300',
+        iconColor: 'text-violet-400'
+      }
+    case 'planned':
+      return {
+        label: 'Plan to Watch',
+        containerStyle: 'bg-sky-950/90 border-sky-500/30 text-sky-300',
+        iconColor: 'text-sky-400'
+      }
+    case 'onhold':
+    case 'paused':
+      return {
+        label: 'On Hold',
+        containerStyle: 'bg-amber-950/90 border-amber-500/30 text-amber-300',
+        iconColor: 'text-amber-400'
+      }
+    case 'dropped':
+      return {
+        label: 'Dropped',
+        containerStyle: 'bg-rose-950/90 border-rose-500/30 text-rose-300',
+        iconColor: 'text-rose-400'
+      }
+    case 'backlog':
+      return {
+        label: 'Backlog',
+        containerStyle: 'bg-slate-900/90 border-slate-700/30 text-slate-300',
+        iconColor: 'text-slate-400'
+      }
+    case 'pending':
+      return {
+        label: 'Pending',
+        containerStyle: 'bg-indigo-950/90 border-indigo-500/30 text-indigo-300',
+        iconColor: 'text-indigo-400'
+      }
+    default:
+      return {
+        label: 'In Library',
+        containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+        iconColor: 'text-emerald-400'
+      }
+  }
+}
+
 // Sub-component for horizontal scrolling category rows
 const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAddDialog, navigate, isSelectMode, selectedItems, setSelectedItems }) => {
   const rowRef = useRef(null)
@@ -136,7 +190,7 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
           const isSelected = !!selectedItems[cardKey]
 
           const watched = watchedItems.find(wi =>
-            wi.type === mediaType && wi.tmdb_id === item.id.toString()
+            wi.type === mediaType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only'
           )
 
           return (
@@ -204,8 +258,9 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
 
                 {/* Watched check badge */}
                 {!isSelectMode && watched && (
-                  <div className="absolute inset-x-0 bottom-0 bg-emerald-950/90 backdrop-blur-md border-t border-emerald-500/30 text-emerald-300 text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> In Library
+                  <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${getStatusLabelAndStyle(watched.status).containerStyle}`}>
+                    <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
+                    <span>{getStatusLabelAndStyle(watched.status).label}</span>
                   </div>
                 )}
               </div>
@@ -455,7 +510,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
       {/* Profile/Detail Banner Header */}
       <div className="relative z-10 bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start shadow-2xl -mt-20 sm:-mt-28">
         {/* Poster / Logo */}
-        <div className={`w-32 sm:w-40 aspect-[2/3] rounded-2xl overflow-hidden border shadow-2xl flex-shrink-0 flex items-center justify-center ${!isPerson ? 'bg-white border-slate-200 p-4' : 'bg-slate-950 border-white/10'}`}>
+        <div className={`w-32 sm:w-40 aspect-[2/3] rounded-2xl overflow-hidden border shadow-2xl flex-shrink-0 flex items-center justify-center ${!isPerson ? 'bg-white border-slate-200 p-4' : 'bg-slate-950 border-slate-800'}`}>
           {isPerson ? (
             <img 
               src={getPosterUrl(data.profile_path)} 
@@ -708,8 +763,9 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
                     />
 
                     {watched && (
-                      <div className="absolute inset-x-0 bottom-0 bg-emerald-950/90 backdrop-blur-md border-t border-emerald-500/30 text-emerald-300 text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> In Library
+                      <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${getStatusLabelAndStyle(watched.status).containerStyle}`}>
+                        <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
+                        <span>{getStatusLabelAndStyle(watched.status).label}</span>
                       </div>
                     )}
                   </div>
@@ -1209,7 +1265,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
         <div
           className={`relative overflow-hidden cursor-pointer ${
             isPerson 
-              ? 'aspect-square rounded-full w-24 h-24 sm:w-28 sm:h-28 mx-auto mt-6 mb-3 bg-slate-950 border border-white/5 shadow-inner' 
+              ? 'aspect-square rounded-full w-24 h-24 sm:w-28 sm:h-28 mx-auto mt-6 mb-3 bg-slate-950 border border-slate-800 shadow-inner' 
               : isCompany 
               ? 'aspect-square w-full bg-white p-4 flex items-center justify-center rounded-2xl border border-slate-800' 
               : 'aspect-[2/3] w-full bg-slate-950'
@@ -1260,8 +1316,9 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
           )}
 
           {!isSelectMode && watched && (
-            <div className="absolute inset-x-0 bottom-0 bg-emerald-950/90 backdrop-blur-md border-t border-emerald-500/30 text-emerald-300 text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1">
-              <Check className="w-3.5 h-3.5" /> In Library
+            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${getStatusLabelAndStyle(watched.status).containerStyle}`}>
+              <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
+              <span>{getStatusLabelAndStyle(watched.status).label}</span>
             </div>
           )}
         </div>
@@ -1497,95 +1554,99 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
         /* ────────────────── UNIFIED DASHBOARD FEED ────────────────── */
         <div className="space-y-12">
 
-          {/* FEATURED HERO BANNER SLIDESHOW WITH SWIPING TRANSITION */}
+          {/* FEATURED HERO BANNER SLIDESHOW WITH FADED TRANSITION */}
           {featuredSlides.length > 0 && (
             <div
               className="relative w-full min-h-[380px] sm:min-h-[440px] md:min-h-[480px] rounded-3xl overflow-hidden shadow-2xl transition-all duration-700 group/hero"
               onMouseEnter={() => setIsPaused(true)}
               onMouseLeave={() => setIsPaused(false)}
             >
-              {/* Horizontal Sliding Container */}
-              <div
-                className="flex w-full h-full transition-transform duration-700 ease-out"
-                style={{ transform: `translateX(-${bannerIndex * 100}%)` }}
-              >
-                {featuredSlides.map((slide, idx) => (
-                  <div
-                    key={slide.id || idx}
-                    className="w-full min-w-full flex-shrink-0 relative min-h-[380px] sm:min-h-[440px] md:min-h-[480px] flex flex-col justify-end overflow-hidden"
-                  >
-                    {/* Background Backdrop Image */}
-                    <div className="absolute inset-0 bg-slate-950 overflow-hidden">
-                      <img
-                        src={`https://image.tmdb.org/t/p/w1280${slide.backdrop_path || slide.poster_path}`}
-                        alt={slide.title || slide.name}
-                        className={`w-full h-full object-cover object-top opacity-100 transition-transform duration-[30000ms] ease-out ${
-                          idx === bannerIndex ? 'scale-[1.07]' : 'scale-100'
-                        }`}
-                      />
-                      {/* Only bottom fade overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+              {/* Faded Slides Container */}
+              <div className="relative w-full h-full min-h-[380px] sm:min-h-[440px] md:min-h-[480px]">
+                {featuredSlides.map((slide, idx) => {
+                  const isActive = idx === bannerIndex;
+                  return (
+                    <div
+                      key={slide.id || idx}
+                      className={`absolute inset-0 w-full h-full flex flex-col justify-end overflow-hidden transition-opacity duration-1000 ease-in-out ${
+                        isActive 
+                          ? 'opacity-100 z-10 pointer-events-auto' 
+                          : 'opacity-0 z-0 pointer-events-none'
+                      }`}
+                    >
+                      {/* Background Backdrop Image */}
+                      <div className="absolute inset-0 bg-slate-950 overflow-hidden">
+                        <img
+                          src={`https://image.tmdb.org/t/p/w1280${slide.backdrop_path || slide.poster_path}`}
+                          alt={slide.title || slide.name}
+                          className={`w-full h-full object-cover object-top opacity-100 transition-transform duration-[30000ms] ease-out ${
+                            isActive ? 'scale-[1.07]' : 'scale-100'
+                          }`}
+                        />
+                        {/* Only bottom fade overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+                      </div>
+
+                      {/* Slide Details Content */}
+                      <div className="relative z-10 p-6 sm:p-10 max-w-2xl space-y-4">
+                        {/* Media Type & Trending Pill */}
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 backdrop-blur-md">
+                            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> #{idx + 1} Trending This Week
+                          </span>
+                          <span className={`text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg backdrop-blur-md border ${
+                            getItemMediaType(slide) === 'movie' 
+                              ? 'bg-sky-500/20 border-sky-400/40 text-sky-300' 
+                              : 'bg-indigo-500/20 border-indigo-400/40 text-indigo-300'
+                          }`}>
+                            {getItemMediaType(slide) === 'movie' ? 'Movie' : 'TV Show'}
+                          </span>
+                        </div>
+
+                        {/* Title */}
+                        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-md">
+                          {slide.title || slide.name}
+                        </h1>
+
+                        {/* Sub-info Badges */}
+                        <div className="flex items-center flex-wrap gap-3 text-xs sm:text-sm font-semibold text-slate-300">
+                          <span className="flex items-center gap-1 text-amber-400 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
+                            <Star className="w-4 h-4 fill-amber-400" />
+                            {(slide.vote_average || 0).toFixed(1)} TMDB
+                          </span>
+                          <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
+                            {slide.release_date ? slide.release_date.split('-')[0] : (slide.first_air_date ? slide.first_air_date.split('-')[0] : 'N/A')}
+                          </span>
+                          <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg uppercase">
+                            {slide.original_language || 'EN'}
+                          </span>
+                        </div>
+
+                        {/* Overview */}
+                        <p className="text-xs sm:text-sm text-slate-300 line-clamp-3 leading-relaxed max-w-xl font-medium">
+                          {slide.overview || 'No synopsis available for this title.'}
+                        </p>
+
+                        {/* Hero Action Buttons */}
+                        <div className="flex items-center gap-3 pt-2">
+                          <button
+                            onClick={() => openAddDialog(slide)}
+                            className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 shadow-xl shadow-violet-600/30 cursor-pointer active:scale-95 transition-all"
+                          >
+                            <Plus className="w-4 h-4" /> Add to Library
+                          </button>
+
+                          <button
+                            onClick={() => navigate(`/explore/${getItemMediaType(slide)}/${slide.id}`)}
+                            className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 backdrop-blur-md cursor-pointer transition-all"
+                          >
+                            <Info className="w-4 h-4 text-violet-400" /> Details & Seasons
+                          </button>
+                        </div>
+                      </div>
                     </div>
-
-                    {/* Slide Details Content */}
-                    <div className="relative z-10 p-6 sm:p-10 max-w-2xl space-y-4">
-                      {/* Media Type & Trending Pill */}
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 backdrop-blur-md">
-                          <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> #{idx + 1} Trending This Week
-                        </span>
-                        <span className={`text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg backdrop-blur-md border ${
-                          getItemMediaType(slide) === 'movie' 
-                            ? 'bg-sky-500/20 border-sky-400/40 text-sky-300' 
-                            : 'bg-indigo-500/20 border-indigo-400/40 text-indigo-300'
-                        }`}>
-                          {getItemMediaType(slide) === 'movie' ? 'Movie' : 'TV Show'}
-                        </span>
-                      </div>
-
-                      {/* Title */}
-                      <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-md">
-                        {slide.title || slide.name}
-                      </h1>
-
-                      {/* Sub-info Badges */}
-                      <div className="flex items-center flex-wrap gap-3 text-xs sm:text-sm font-semibold text-slate-300">
-                        <span className="flex items-center gap-1 text-amber-400 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
-                          <Star className="w-4 h-4 fill-amber-400" />
-                          {(slide.vote_average || 0).toFixed(1)} TMDB
-                        </span>
-                        <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
-                          {slide.release_date ? slide.release_date.split('-')[0] : (slide.first_air_date ? slide.first_air_date.split('-')[0] : 'N/A')}
-                        </span>
-                        <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg uppercase">
-                          {slide.original_language || 'EN'}
-                        </span>
-                      </div>
-
-                      {/* Overview */}
-                      <p className="text-xs sm:text-sm text-slate-300 line-clamp-3 leading-relaxed max-w-xl font-medium">
-                        {slide.overview || 'No synopsis available for this title.'}
-                      </p>
-
-                      {/* Hero Action Buttons */}
-                      <div className="flex items-center gap-3 pt-2">
-                        <button
-                          onClick={() => openAddDialog(slide)}
-                          className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 shadow-xl shadow-violet-600/30 cursor-pointer active:scale-95 transition-all"
-                        >
-                          <Plus className="w-4 h-4" /> Add to Library
-                        </button>
-
-                        <button
-                          onClick={() => navigate(`/explore/${getItemMediaType(slide)}/${slide.id}`)}
-                          className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 backdrop-blur-md cursor-pointer transition-all"
-                        >
-                          <Info className="w-4 h-4 text-violet-400" /> Details & Seasons
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Manual Carousel Arrow Controls */}

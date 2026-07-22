@@ -737,7 +737,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 placeholder="Search in list..."
                 value={listSearchQuery}
                 onChange={(e) => setListSearchQuery(e.target.value)}
-                className="bg-slate-950 border border-slate-855 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-550 w-32 sm:w-48 transition-colors"
+                className="bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-550 w-32 sm:w-48 transition-colors"
               />
 
               {/* Fade Watched Toggle Button */}
@@ -773,7 +773,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                         Sort By
                       </label>
-                      <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-850 rounded-none px-2 py-1">
+                      <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
                         <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                         <select
                           value={listSortBy}
@@ -834,7 +834,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 </div>
               )
             ) : (
-              <div className="text-center py-16 border border-dashed border-slate-850 rounded-2xl max-w-sm mx-auto">
+              <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl max-w-sm mx-auto">
                 <FolderOpen className="w-10 h-10 text-slate-700 mx-auto mb-2" />
                 <h4 className="text-slate-400 font-bold text-xs">This list is empty</h4>
                 <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Add items using your watchlist or the explorer view.</p>
@@ -869,7 +869,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   className="group flex flex-col cursor-pointer transition-all duration-300"
                 >
                   {/* Landscape Image */}
-                  <div className="aspect-[19/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-850 shadow-md relative">
+                  <div className="aspect-[19/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md relative">
                     {list.thumbnail_url || list.banner_url ? (
                       <img 
                         src={list.thumbnail_url || list.banner_url} 
@@ -877,7 +877,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" 
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-slate-900 to-indigo-950/20 flex items-center justify-center border border-slate-850/30 group-hover:from-violet-950/30 group-hover:to-indigo-950/30 transition-all duration-500">
+                      <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-slate-900 to-indigo-950/20 flex items-center justify-center border border-slate-800/40 group-hover:from-violet-950/30 group-hover:to-indigo-950/30 transition-all duration-500">
                         <Folder className="w-8 h-8 text-slate-650 group-hover:text-violet-500/70 transition-colors" />
                       </div>
                     )}
@@ -895,7 +895,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
           {/* Empty Directory State */}
           {lists.length === 0 && (
-            <div className="text-center py-16 border border-dashed border-slate-850 rounded-2xl max-w-sm mx-auto mt-6">
+            <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl max-w-sm mx-auto mt-6">
               <FolderPlus className="w-12 h-12 text-slate-700 mx-auto mb-3" />
               <h3 className="font-bold text-slate-400 mb-1">No custom lists created</h3>
               <p className="text-xs text-slate-500">Create your first custom category using the card above.</p>
@@ -1153,7 +1153,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 </button>
               </div>
 
-              <div className="pt-3 border-t border-slate-850 mt-1 flex justify-center">
+              <div className="pt-3 border-t border-slate-800 mt-1 flex justify-center">
                 <button
                   type="button"
                   onClick={() => {

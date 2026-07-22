@@ -4,6 +4,60 @@ import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLi
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
 import { fetchOMDBData } from '../lib/omdb'
 
+const getCollectionStatusLabelAndStyle = (status) => {
+  switch (status) {
+    case 'completed':
+      return {
+        label: 'Watched',
+        containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+        iconColor: 'text-emerald-400'
+      }
+    case 'watching':
+      return {
+        label: 'Watching',
+        containerStyle: 'bg-violet-950/90 border-violet-500/30 text-violet-300',
+        iconColor: 'text-violet-400'
+      }
+    case 'planned':
+      return {
+        label: 'Plan to Watch',
+        containerStyle: 'bg-sky-950/90 border-sky-500/30 text-sky-300',
+        iconColor: 'text-sky-400'
+      }
+    case 'onhold':
+    case 'paused':
+      return {
+        label: 'On Hold',
+        containerStyle: 'bg-amber-950/90 border-amber-500/30 text-amber-300',
+        iconColor: 'text-amber-400'
+      }
+    case 'dropped':
+      return {
+        label: 'Dropped',
+        containerStyle: 'bg-rose-950/90 border-rose-500/30 text-rose-300',
+        iconColor: 'text-rose-400'
+      }
+    case 'backlog':
+      return {
+        label: 'Backlog',
+        containerStyle: 'bg-slate-900/90 border-slate-700/30 text-slate-300',
+        iconColor: 'text-slate-400'
+      }
+    case 'pending':
+      return {
+        label: 'Pending',
+        containerStyle: 'bg-indigo-950/90 border-indigo-500/30 text-indigo-300',
+        iconColor: 'text-indigo-400'
+      }
+    default:
+      return {
+        label: 'In Library',
+        containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+        iconColor: 'text-emerald-400'
+      }
+  }
+}
+
 const CastCarousel = ({ cast, navigate }) => {
   const scrollRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -47,7 +101,7 @@ const CastCarousel = ({ cast, navigate }) => {
   const displayedCast = showAll ? cast : cast
 
   return (
-    <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
+    <div className="bg-[#060810] border border-slate-800/80 rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-base font-bold text-white tracking-wide">Top Cast</h4>
 
@@ -98,7 +152,7 @@ const CastCarousel = ({ cast, navigate }) => {
             <div
               key={actor.id}
               onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: actor.id, name: actor.name } } })}
-              className="bg-[#101424] border border-slate-850 hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md group/actor cursor-pointer transition-all duration-300"
+              className="bg-[#101424] border border-slate-800 hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md group/actor cursor-pointer transition-all duration-300"
             >
               <div className="aspect-[3/4] w-full bg-slate-950 relative overflow-hidden">
                 {actor.profile_path ? (
@@ -777,6 +831,42 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     })
     : []
 
+  const collectionScrollRef = useRef(null)
+  const [canScrollLeftCollection, setCanScrollLeftCollection] = useState(false)
+  const [canScrollRightCollection, setCanScrollRightCollection] = useState(true)
+
+  const checkCollectionScroll = () => {
+    if (collectionScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = collectionScrollRef.current
+      setCanScrollLeftCollection(scrollLeft > 10)
+      setCanScrollRightCollection(scrollLeft + clientWidth < scrollWidth - 10)
+    }
+  }
+
+  useEffect(() => {
+    checkCollectionScroll()
+    const el = collectionScrollRef.current
+    if (el) {
+      el.addEventListener('scroll', checkCollectionScroll)
+      window.addEventListener('resize', checkCollectionScroll)
+    }
+    return () => {
+      if (el) el.removeEventListener('scroll', checkCollectionScroll)
+      window.removeEventListener('resize', checkCollectionScroll)
+    }
+  }, [collectionDetails, sortedParts])
+
+  const scrollCollection = (direction) => {
+    if (collectionScrollRef.current) {
+      const { scrollLeft, clientWidth } = collectionScrollRef.current
+      const amount = clientWidth * 0.75
+      collectionScrollRef.current.scrollTo({
+        left: direction === 'left' ? scrollLeft - amount : scrollLeft + amount,
+        behavior: 'smooth'
+      })
+    }
+  }
+
   // Trailer
   const videos = details?.videos?.results || []
   const trailer = videos.find(v => v.type === 'Trailer' && v.site === 'YouTube') || videos.find(v => v.site === 'YouTube')
@@ -809,6 +899,37 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       return acc
     }
   }, [])
+
+  const budgetRaw = omdbData?.budget || (details?.budget ? `$${details.budget.toLocaleString()}` : null)
+
+  const budgetINR = (() => {
+    if (!budgetRaw) return null
+    let numVal = 0
+    if (typeof budgetRaw === 'number') {
+      numVal = budgetRaw
+    } else {
+      const parsed = parseFloat(budgetRaw.replace(/[^0-9.]/g, ''))
+      numVal = isNaN(parsed) ? 0 : parsed
+    }
+    if (numVal <= 0) return null
+    const crores = (numVal * 83) / 10000000
+    return `${crores.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} Crores`
+  })()
+
+  const boxOfficeINR = (() => {
+    const rawBox = omdbData?.boxOffice
+    if (!rawBox) return null
+    let numVal = 0
+    if (typeof rawBox === 'number') {
+      numVal = rawBox
+    } else {
+      const parsed = parseFloat(rawBox.replace(/[^0-9.]/g, ''))
+      numVal = isNaN(parsed) ? 0 : parsed
+    }
+    if (numVal <= 0) return null
+    const crores = (numVal * 83) / 10000000
+    return `${crores.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} Crores`
+  })()
 
   // TV Seasons from TMDB details
   const seasons = details?.seasons?.filter(s => s.season_number > 0) || []  // Data Array Config for RATINGS & SCORES
@@ -1213,7 +1334,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         {/* Main Hero Card Content */}
         <div className="relative z-10 p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
           {/* Poster */}
-          <div className="w-36 sm:w-44 md:w-52 aspect-[2/3] rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex-shrink-0 bg-slate-950">
+          <div className="w-36 sm:w-44 md:w-52 aspect-[2/3] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex-shrink-0 bg-slate-950">
             <img
               src={getPosterUrl(posterPath)}
               alt={title}
@@ -1227,7 +1348,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               {/* Status Badge */}
               <div className="flex items-center gap-2">
                 {item.isExplore ? (
-                  <span className="text-xs font-bold text-slate-400 bg-slate-900 border border-white/10 px-3 py-1 rounded-lg">
+                  <span className="text-xs font-bold text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1 rounded-lg">
                     Not in List
                   </span>
                 ) : (
@@ -1327,7 +1448,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     setIsStatusModalOpen(true)
                   }}
                   className={`font-bold text-sm px-5 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer border ${item.isExplore
-                    ? 'bg-[#101424] hover:bg-[#181e36] text-slate-200 border-white/10'
+                    ? 'bg-[#101424] hover:bg-[#181e36] text-slate-200 border-slate-800'
                     : 'bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border-emerald-500/40'
                     }`}
                 >
@@ -1347,7 +1468,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 {(item.type === 'movie' || item.type === 'tv') && resolvedDownloadSources.length > 0 && (
                   <button
                     onClick={() => setIsDownloadOpen(true)}
-                    className="bg-[#101424] hover:bg-[#181e36] text-slate-200 border border-white/10 p-3 rounded-xl flex items-center justify-center transition-all cursor-pointer"
+                    className="bg-[#101424] hover:bg-[#181e36] text-slate-200 border border-slate-800 p-3 rounded-xl flex items-center justify-center transition-all cursor-pointer"
                     title="Download Sources"
                   >
                     <Download className="w-4 h-4 text-violet-400" />
@@ -1366,7 +1487,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         {/* ========================================================================= */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           {/* DETAILS Box */}
-          <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#060810] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
               DETAILS
             </h3>
@@ -1419,14 +1540,6 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   {details?.original_language ? (LANGUAGE_NAMES[details.original_language.toLowerCase()] || details.original_language.toUpperCase()) : 'English'}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Budget</span>
-                <span className="text-white font-bold">{details?.budget ? `$${details.budget.toLocaleString()}` : '—'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Revenue</span>
-                <span className="text-white font-bold">{details?.revenue ? `$${details.revenue.toLocaleString()}` : '—'}</span>
-              </div>
             </div>
           </div>
 
@@ -1438,7 +1551,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   setImageModalType('posters')
                   setShowImageModal(true)
                 }}
-                className="bg-[#060810] border border-white/5 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
+                className="bg-[#060810] border border-slate-800/80 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
               >
                 <Film className="w-4 h-4 text-violet-400" />
                 Posters
@@ -1448,7 +1561,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   setImageModalType('backdrops')
                   setShowImageModal(true)
                 }}
-                className="bg-[#060810] border border-white/5 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
+                className="bg-[#060810] border border-slate-800/80 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
               >
                 <Tag className="w-4 h-4 text-violet-400" />
                 Banners
@@ -1457,7 +1570,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           )}
 
           {/* RATINGS & SCORES Box */}
-          <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#060810] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <span>RATINGS & SCORES</span>
@@ -1489,19 +1602,29 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               ))}
             </div>
 
-            {/* Extra OMDb Info (Awards & BoxOffice) */}
-            {omdbData && (omdbData.awards || omdbData.boxOffice) && (
-              <div className="mt-3.5 pt-3 border-t border-slate-850/80 flex flex-col gap-1.5 text-[11px]">
-                {omdbData.awards && (
+            {/* Extra OMDb Info (Awards, BoxOffice & Budget) */}
+            {((omdbData && (omdbData.awards || omdbData.boxOffice)) || budgetRaw) && (
+              <div className="mt-3.5 pt-3 border-t border-slate-800 flex flex-col gap-1.5 text-[11px]">
+                {omdbData?.awards && (
                   <div className="flex items-center gap-1.5 text-amber-300/90 font-medium truncate" title={omdbData.awards}>
                     <Award className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                     <span className="truncate">{omdbData.awards}</span>
                   </div>
                 )}
-                {omdbData.boxOffice && (
+                {omdbData?.boxOffice && (
                   <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
                     <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>Box Office: {omdbData.boxOffice}</span>
+                    <span>
+                      Box Office: {omdbData.boxOffice} {boxOfficeINR && <span className="text-[#a78bfa]">(INR Rs. {boxOfficeINR})</span>}
+                    </span>
+                  </div>
+                )}
+                {budgetRaw && (
+                  <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <span>
+                      Production Budget: {budgetRaw} {budgetINR && <span className="text-[#a78bfa]">(INR Rs. {budgetINR})</span>}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1509,7 +1632,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
 
           {/* WHERE TO WATCH Box */}
-          <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#060810] border border-slate-800 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
               Streaming Platforms
             </h3>
@@ -1522,7 +1645,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                       href={getProviderUrl(provider.provider_name, providerData?.link, title)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 py-2 px-3 rounded-xl bg-[#101424] border border-white/[0.04] hover:border-violet-500/30 transition-all group/prov min-w-0"
+                      className="flex items-center gap-3 py-2 px-3 rounded-xl bg-[#101424] border border-slate-800 hover:border-violet-500/30 transition-all group/prov min-w-0"
                     >
                       <img
                         src={`https://image.tmdb.org/t/p/original${provider.logo_path}`}
@@ -1552,7 +1675,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
 
           {/* EXTERNAL LINKS Box */}
-          <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#060810] border border-slate-800 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
               EXTERNAL LINKS
             </h3>
@@ -1579,8 +1702,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         <div className="lg:col-span-8 flex flex-col gap-6">
           {/* TV Show Progress & Episode Tracker Section */}
           {(type === 'tv' || item.type === 'tv') && seasons.length > 0 && (
-            <div className="bg-[#060810] border border-white/5 rounded-2xl p-5 shadow-2xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-white/5 pb-4">
+            <div className="bg-[#060810] border border-slate-800 rounded-2xl p-5 shadow-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Tv className="w-4 h-4 text-violet-400" />
@@ -1602,7 +1725,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                         handleUpdateEpisodes(sNum, 0, sObj.episode_count || 1)
                       }
                     }}
-                    className="bg-[#101424] border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
+                    className="bg-[#101424] border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
                   >
                     {seasons.map(s => (
                       <option key={s.season_number} value={s.season_number}>
@@ -1616,7 +1739,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                       <button
                         onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.max(0, currentEpisodesWatched - 1), currentSeason.episode_count || 1)}
                         disabled={currentEpisodesWatched <= 0}
-                        className="bg-[#101424] hover:bg-[#181e36] disabled:opacity-40 border border-white/10 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        className="bg-[#101424] hover:bg-[#181e36] disabled:opacity-40 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
                       >
                         -1 Ep
                       </button>
@@ -1640,7 +1763,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     {totalEpisodes > 0 ? Math.round((myTotalEpisodesWatched / totalEpisodes) * 100) : 0}% ({myTotalEpisodesWatched} / {totalEpisodes} eps)
                   </span>
                 </div>
-                <div className="w-full bg-[#101424] rounded-full h-2.5 overflow-hidden border border-white/5">
+                <div className="w-full bg-[#101424] rounded-full h-2.5 overflow-hidden border border-slate-800">
                   <div
                     className="bg-gradient-to-r from-violet-600 to-indigo-500 h-full rounded-full transition-all duration-500"
                     style={{ width: `${totalEpisodes > 0 ? Math.min(100, Math.round((myTotalEpisodesWatched / totalEpisodes) * 100)) : 0}%` }}
@@ -1661,7 +1784,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                         ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
                         : isCurrent
                           ? 'bg-violet-950/60 border-violet-500/40 text-violet-300'
-                          : 'bg-[#101424] border-white/5 text-slate-400 hover:text-slate-200'
+                          : 'bg-[#101424] border-slate-800 text-slate-400 hover:text-slate-200'
                         }`}
                     >
                       {isWatched && <Check className="w-3.5 h-3.5 text-emerald-400" />}
@@ -1680,80 +1803,126 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           {/* Franchise Collection Section */}
           {collectionDetails && sortedParts.length > 0 && (
             <div className="mt-4 border-t border-slate-900 pt-6">
-              <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-violet-400" />
-                Part of the {collectionDetails.name}
-              </h3>
-              <p className="text-xs text-slate-400 mb-4">
-                Explore the entire franchise, ordered by release date.
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                    Part of the {collectionDetails.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Explore the entire franchise, ordered by release date.
+                  </p>
+                </div>
 
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none">
-                {sortedParts.map(part => {
-                  const releaseDate = part.release_date || ''
-                  const partYear = releaseDate ? releaseDate.split('-')[0] : 'TBA'
-                  const isCurrent = part.id.toString() === item.tmdb_id
-                  const watchlistInstance = userWatchedPart(part.id)
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => scrollCollection('left')}
+                    disabled={!canScrollLeftCollection}
+                    className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                      canScrollLeftCollection
+                        ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                        : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                    }`}
+                    title="Scroll Left"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollCollection('right')}
+                    disabled={!canScrollRightCollection}
+                    className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                      canScrollRightCollection
+                        ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                        : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                    }`}
+                    title="Scroll Right"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-                  return (
-                    <div
-                      key={part.id}
-                      onClick={() => {
-                        if (isCurrent) return
-                        if (watchlistInstance) {
-                          navigate(`/media/${watchlistInstance.id}`)
-                        } else {
-                          navigate(`/explore/movie/${part.id}`)
-                        }
-                      }}
-                      className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg flex flex-col group ${isCurrent
-                        ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
-                        : 'border-slate-850 hover:border-slate-700/80 cursor-pointer'
-                        }`}
-                    >
-                      <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
-                        {part.poster_path ? (
-                          <img
-                            src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
-                            alt={part.title}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-600 font-bold text-4xl rounded-none">
-                            {part.title.charAt(0)}
-                          </div>
-                        )}
+              <div className="relative">
+                {/* Left Side Fade Overlay */}
+                {canScrollLeftCollection && (
+                  <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-950 to-transparent z-10" />
+                )}
 
-                        {isCurrent && (
-                          <div className="absolute top-2 left-2 bg-violet-600/90 backdrop-blur text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-md">
-                            CURRENT
-                          </div>
-                        )}
+                {/* Right Side Fade Overlay */}
+                {canScrollRightCollection && (
+                  <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-950 to-transparent z-10" />
+                )}
 
-                        {watchlistInstance && (
-                          <div className="absolute top-2 right-2 bg-emerald-500/95 backdrop-blur text-white p-1 rounded shadow-md border border-emerald-400/20" title={getStatusLabel(watchlistInstance.status)}>
-                            <Check className="w-3 h-3 stroke-[3]" />
-                          </div>
-                        )}
-                      </div>
+                {/* Horizontal Scroll Row */}
+                <div
+                  ref={collectionScrollRef}
+                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {sortedParts.map(part => {
+                    const releaseDate = part.release_date || ''
+                    const partYear = releaseDate ? releaseDate.split('-')[0] : 'TBA'
+                    const isCurrent = part.id.toString() === item.tmdb_id
+                    const watchlistInstance = userWatchedPart(part.id)
 
-                      <div className="p-2.5 flex flex-col flex-grow justify-between min-h-[64px] bg-gradient-to-b from-[#0f1422] to-[#070b13]">
-                        <span className={`text-[10px] font-bold line-clamp-2 w-full ${isCurrent ? 'text-violet-400' : 'text-slate-200'}`} title={part.title}>
-                          {part.title}
-                        </span>
-                        <div className="flex items-center justify-between mt-1 text-[9px] text-slate-500 font-semibold">
-                          <span>{partYear}</span>
+                    return (
+                      <div
+                        key={part.id}
+                        onClick={() => {
+                          if (isCurrent) return
+                          if (watchlistInstance) {
+                            navigate(`/media/${watchlistInstance.id}`)
+                          } else {
+                            navigate(`/explore/movie/${part.id}`)
+                          }
+                        }}
+                        className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg flex flex-col group ${isCurrent
+                          ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
+                          : 'border-slate-800 hover:border-slate-700/80 cursor-pointer'
+                          }`}
+                      >
+                        <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
+                          {part.poster_path ? (
+                            <img
+                              src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
+                              alt={part.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-600 font-bold text-4xl rounded-none">
+                              {part.title.charAt(0)}
+                            </div>
+                          )}
+
+                          {isCurrent && (
+                            <div className="absolute top-2 left-2 bg-violet-600/90 backdrop-blur text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-md">
+                              CURRENT
+                            </div>
+                          )}
+
                           {watchlistInstance && (
-                            <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wide">
-                              {watchlistInstance.status === 'completed' ? 'Watched' : watchlistInstance.status}
-                            </span>
+                            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[10px] font-bold py-1 px-1.5 flex items-center justify-center gap-1 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).containerStyle}`}>
+                              <Check className={`w-3.5 h-3.5 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).iconColor}`} />
+                              <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
+                            </div>
                           )}
                         </div>
+
+                        <div className="p-2.5 flex flex-col flex-grow justify-between min-h-[64px] bg-gradient-to-b from-[#0f1422] to-[#070b13]">
+                          <span className={`text-[10px] font-bold line-clamp-2 w-full ${isCurrent ? 'text-violet-400' : 'text-slate-200'}`} title={part.title}>
+                            {part.title}
+                          </span>
+                          <div className="flex items-center justify-between mt-1 text-[9px] text-slate-500 font-semibold">
+                            <span>{partYear}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -1762,7 +1931,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           {!item.isExplore && (
             <div className="mt-4">
               <h3 className="text-lg font-bold text-white mb-3">My Notes & Review</h3>
-              <div className="bg-[#0f1422] border border-slate-855 rounded-2xl p-4 min-h-[100px] shadow-inner">
+              <div className="bg-[#0f1422] border border-slate-800 rounded-2xl p-4 min-h-[100px] shadow-inner">
                 {item.review ? (
                   <p className="text-slate-300 leading-relaxed whitespace-pre-wrap text-sm">{item.review}</p>
                 ) : (
@@ -1782,10 +1951,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       {/* Trailer Modal Overlay */}
       {isTrailerOpen && trailer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in p-4 sm:p-8">
-          <div className="relative w-full max-w-6xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+          <div className="relative w-full max-w-6xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
             <button
               onClick={() => setIsTrailerOpen(false)}
-              className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 flex items-center gap-2 bg-black/50 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors cursor-pointer backdrop-blur-md border border-white/10 shadow-lg"
+              className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 flex items-center gap-2 bg-black/50 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors cursor-pointer backdrop-blur-md border border-slate-800 shadow-lg"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Details
@@ -1823,14 +1992,14 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
             <button
               onClick={() => setIsPlayerOpen(false)}
-              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-855 text-white px-4 py-2 rounded-full font-bold transition-colors cursor-pointer border border-slate-800 shadow-lg text-xs flex-shrink-0"
+              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-bold transition-colors cursor-pointer border border-slate-800 shadow-lg text-xs flex-shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
               Close Player
             </button>
           </div>
 
-          <div className="relative w-full max-w-6xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex-grow max-h-[75vh]">
+          <div className="relative w-full max-w-6xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex-grow max-h-[75vh]">
             {currentSourceUrl ? (
               <iframe
                 className="w-full h-full"
@@ -1891,7 +2060,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 <button
                   onClick={handlePrevEpisode}
                   disabled={selectedSeason === 1 && selectedEpisode === 1}
-                  className="flex items-center gap-1.5 bg-slate-950 border border-slate-850 hover:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-350 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-350 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                   Prev Episode
@@ -1931,7 +2100,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               </div>
               <button
                 onClick={() => setIsDownloadOpen(false)}
-                className="flex items-center gap-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer border border-slate-850 shadow-md text-xs"
+                className="flex items-center gap-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white px-3 py-1.5 rounded-full font-bold transition-colors cursor-pointer border border-slate-800 shadow-md text-xs"
               >
                 Close
               </button>
@@ -1939,7 +2108,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
             {/* If TV show, allow season/episode controls right inside the download modal */}
             {item?.type === 'tv' && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-950 border border-slate-850 p-4 rounded-2xl mb-6">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-950 border border-slate-800 p-4 rounded-2xl mb-6">
                 {/* Dropdowns */}
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">
@@ -2009,7 +2178,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/60 border border-slate-850 hover:border-violet-500/40 hover:bg-violet-950/10 transition-all group"
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 hover:border-violet-500/40 hover:bg-violet-950/10 transition-all group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Download className="w-4 h-4 text-violet-400" />
@@ -2126,7 +2295,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       {showImageModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-850 mb-4">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <h3 className="text-lg font-bold text-white uppercase tracking-wider">
                 All {imageModalType === 'posters' ? 'Posters' : 'Banners'} ({details?.images?.[imageModalType]?.length || 0})
               </h3>
@@ -2147,7 +2316,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                       href={`https://image.tmdb.org/t/p/original${img.file_path}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group relative rounded-xl overflow-hidden bg-slate-950 border border-slate-850 hover:border-violet-500/40 transition-all shadow-md flex"
+                      className="group relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800 hover:border-violet-500/40 transition-all shadow-md flex"
                     >
                       <img
                         src={`https://image.tmdb.org/t/p/${imageModalType === 'posters' ? 'w342' : 'w780'}${img.file_path}`}

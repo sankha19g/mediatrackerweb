@@ -218,7 +218,7 @@ export default function SavedSites({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-850 mb-6">
+      <div className="flex border-b border-slate-800 mb-6">
         <button
           onClick={() => setActiveTab('movies_tvshows')}
           className={`flex items-center gap-2 px-6 py-3 font-bold text-sm border-b-2 transition-all cursor-pointer ${
@@ -249,7 +249,7 @@ export default function SavedSites({
           <div
             key={site.id}
             onContextMenu={(e) => handleContextMenu(e, site)}
-            className="group relative flex flex-col items-center bg-slate-900/40 border border-slate-850 rounded-2xl overflow-hidden hover:border-violet-500/30 hover:bg-slate-900 transition-all hover:-translate-y-0.5 shadow-md hover:shadow-violet-500/5 duration-300"
+            className="group relative flex flex-col items-center bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden hover:border-violet-500/30 hover:bg-slate-900 transition-all hover:-translate-y-0.5 shadow-md hover:shadow-violet-500/5 duration-300"
           >
             {/* Clickable Area for Image and Site Name */}
             <a
@@ -345,7 +345,7 @@ export default function SavedSites({
                 onRemoveSite(contextMenuSite.id)
                 handleCloseContextMenu()
               }}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-650 rounded-lg transition-colors cursor-pointer text-left w-full border-t border-slate-850 mt-1"
+              className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-650 rounded-lg transition-colors cursor-pointer text-left w-full border-t border-slate-800 mt-1"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete Site
@@ -435,7 +435,7 @@ export default function SavedSites({
                 <button
                   type="button"
                   onClick={() => setEditingSite(null)}
-                  className="flex-1 bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-white font-bold py-2 rounded-lg text-xs transition-colors cursor-pointer border border-slate-850"
+                  className="flex-1 bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-white font-bold py-2 rounded-lg text-xs transition-colors cursor-pointer border border-slate-800"
                 >
                   Cancel
                 </button>

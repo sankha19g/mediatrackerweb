@@ -539,7 +539,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Sort By
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-850 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
                     <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={sortBy}
@@ -556,7 +556,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Release Year
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-855 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={yearFilter}
@@ -575,7 +575,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Original Language
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-855 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
                     <Globe className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={languageFilter}

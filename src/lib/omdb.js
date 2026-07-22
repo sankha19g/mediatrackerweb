@@ -44,6 +44,8 @@ export const fetchOMDBData = async ({ imdbId, title, year, type }) => {
     const imdbVotes = data.imdbVotes && data.imdbVotes !== 'N/A' ? data.imdbVotes : null
     const metascore = data.Metascore && data.Metascore !== 'N/A' ? data.Metascore : null
 
+    const budget = data.Budget && data.Budget !== 'N/A' ? data.Budget : null
+
     return {
       imdbRating,
       imdbVotes,
@@ -52,6 +54,7 @@ export const fetchOMDBData = async ({ imdbId, title, year, type }) => {
       rated: data.Rated !== 'N/A' ? data.Rated : null,
       awards: data.Awards !== 'N/A' ? data.Awards : null,
       boxOffice: data.BoxOffice !== 'N/A' ? data.BoxOffice : null,
+      budget,
       imdbID: data.imdbID !== 'N/A' ? data.imdbID : imdbId,
       raw: data
     }

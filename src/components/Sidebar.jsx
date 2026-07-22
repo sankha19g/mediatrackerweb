@@ -173,7 +173,7 @@ export default function Sidebar({
         </nav>
 
         {/* Footer Statistics */}
-        <div className="border-t border-slate-850 pt-4 mt-auto space-y-2">
+        <div className="border-t border-slate-800 pt-4 mt-auto space-y-2">
           <div className="flex items-center justify-between text-[11px] text-slate-500">
             <span>Database Connection:</span>
             <span className={isConnectedToFirebase ? 'text-emerald-400 font-semibold' : 'text-amber-500'}>
@@ -187,7 +187,7 @@ export default function Sidebar({
             </span>
           </div>
           {user && (
-            <div className="text-[10px] text-slate-500 line-clamp-1 border-t border-slate-850/60 pt-2 mt-1">
+            <div className="text-[10px] text-slate-500 line-clamp-1 border-t border-slate-800/60 pt-2 mt-1">
               Logged in as: <span className="text-slate-350">{user.email}</span>
             </div>
           )}
