@@ -468,7 +468,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
   return (
     <div className="animate-fade-in">
       {/* Backdrop collage / blur banner */}
-      <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 sm:h-64 overflow-hidden z-0 bg-slate-950 mb-8">
+      <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 sm:h-64 overflow-hidden z-0 bg-black mb-8">
         {/* Overlaid back button & title */}
         <div className="absolute inset-x-0 top-0 z-20 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 flex items-center justify-between">
           <button 
@@ -478,7 +478,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
             <ArrowLeft className="w-4 h-4" />
             {isFromState ? 'Back' : 'Back to Explore'}
           </button>
-          <span className="text-xs font-bold text-slate-400 bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full border border-slate-800 uppercase tracking-wider">
+          <span className="text-xs font-bold text-slate-400 bg-black/85 backdrop-blur-md px-3 py-1 rounded-full border border-slate-800 uppercase tracking-wider">
             {isPerson ? 'Artist Profile' : 'Production Studio'}
           </span>
         </div>
@@ -506,13 +506,13 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
               />
             ) : (
               /* Gradient mesh for studio or fallback */
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-900/30 via-indigo-900/20 to-slate-950 opacity-40 filter blur-xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-900/30 via-indigo-900/20 to-black opacity-40 filter blur-xl" />
             )}
           </div>
         )}
         {/* Gradients to fade collage into the dark page background */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent z-10" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-transparent to-slate-950 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent z-10" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black z-10" />
       </div>
 
       {/* Centered Profile Content */}
@@ -1424,7 +1424,7 @@ export default function ExploreTMDB({
                       }`}
                     >
                       {/* Background Backdrop Image */}
-                      <div className="absolute inset-0 bg-slate-950 overflow-hidden">
+                      <div className="absolute inset-0 bg-black overflow-hidden">
                         <img
                           src={`https://image.tmdb.org/t/p/w1280${slide.backdrop_path || slide.poster_path}`}
                           alt={slide.title || slide.name}
@@ -1433,7 +1433,7 @@ export default function ExploreTMDB({
                           }`}
                         />
                         {/* Only bottom fade overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
                       </div>
 
                       {/* Slide Details Content Wrapper (Constrained and centered) */}
@@ -1551,7 +1551,7 @@ export default function ExploreTMDB({
             {/* ────────────────── SEARCH RESULTS VIEW ────────────────── */}
             {query.trim().length >= 3 ? (
         <div className="space-y-6 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Search className="w-5 h-5 text-violet-400" />
               Search Results for <span className="text-violet-400">"{query}"</span>
@@ -1653,7 +1653,7 @@ export default function ExploreTMDB({
                       <Film className="w-4 h-4 text-violet-400" />
                       Movies & TV Shows
                     </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
                       {searchResults
                         .filter(i => getItemMediaType(i) === 'movie' || getItemMediaType(i) === 'tv')
                         .map(item => renderCard(item, false))}
@@ -1663,7 +1663,7 @@ export default function ExploreTMDB({
               </div>
             ) : (
               /* Single filter grid mode */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4 sm:gap-6">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
                 {filteredSearchResults.map(item => renderCard(item, false))}
               </div>
             )

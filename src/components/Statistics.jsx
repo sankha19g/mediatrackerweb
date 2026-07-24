@@ -458,7 +458,7 @@ export default function Statistics({ items = [] }) {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
-        <div className="bg-[#060810] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
+        <div className="bg-[#0a0a0a] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Added</span>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-3xl font-black text-white">{totalCount}</span>
@@ -469,7 +469,7 @@ export default function Statistics({ items = [] }) {
           </p>
         </div>
 
-        <div className="bg-[#060810] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
+        <div className="bg-[#0a0a0a] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Top Genre</span>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-2xl font-black text-violet-400 truncate max-w-full block" title={topGenre}>
@@ -486,7 +486,7 @@ export default function Statistics({ items = [] }) {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         
         {/* Left Side: Status Table */}
-        <div className="md:col-span-6 bg-[#060810]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
+        <div className="md:col-span-6 bg-[#0a0a0a]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-2.5 mb-6">
             <List className="w-5 h-5 text-violet-400" />
             <h3 className="text-base font-extrabold text-white">List Breakdown</h3>
@@ -525,7 +525,7 @@ export default function Statistics({ items = [] }) {
         </div>
 
         {/* Right Side: Ranked Genre List */}
-        <div className="md:col-span-6 bg-[#060810]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
+        <div className="md:col-span-6 bg-[#0a0a0a]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
           
           {/* Title Header with TMDB background syncing loader */}
           <div className="flex items-center justify-between mb-6">
@@ -594,7 +594,7 @@ export default function Statistics({ items = [] }) {
       </div>
 
       {/* Top 10 Actors Section */}
-      <div className="mt-8 bg-[#060810]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
+      <div className="mt-8 bg-[#0a0a0a]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
             <User className="w-5 h-5 text-violet-400" />
@@ -702,7 +702,7 @@ export default function Statistics({ items = [] }) {
       </div>
 
       {/* Top 10 Directors Section */}
-      <div className="mt-8 bg-[#060810]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
+      <div className="mt-8 bg-[#0a0a0a]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
             <Clapperboard className="w-5 h-5 text-violet-400" />

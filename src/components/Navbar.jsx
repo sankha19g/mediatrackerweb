@@ -31,7 +31,7 @@ export default function Navbar({
   const showSelectButton = isExplorePage && (!isPersonOrCompany || isSearching)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-900 bg-slate-950/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-900 bg-black/80 backdrop-blur-md">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         
         {/* Brand & Menu */}
@@ -167,7 +167,7 @@ export default function Navbar({
 
       {/* Mobile top filter tabs (below main nav) */}
       {activeView === 'watchlist' && (
-        <div className="flex md:hidden items-center justify-around border-t border-slate-950 bg-slate-950 p-2">
+        <div className="flex md:hidden items-center justify-around border-t border-slate-900 bg-black p-2">
           {[
             { id: 'movie', label: 'Movies', icon: Film },
             { id: 'tv', label: 'TV Shows', icon: Tv },

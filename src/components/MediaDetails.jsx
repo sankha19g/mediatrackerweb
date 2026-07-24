@@ -101,7 +101,7 @@ const CastCarousel = ({ cast, navigate }) => {
   const displayedCast = showAll ? cast : cast
 
   return (
-    <div className="bg-[#060810] rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
+    <div className="bg-[#0a0a0a] rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-base font-bold text-white tracking-wide">Top Cast</h4>
 
@@ -183,12 +183,12 @@ const CastCarousel = ({ cast, navigate }) => {
         <div className="relative">
           {/* Left Side Fade Overlay */}
           {canScrollLeft && (
-            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#060810] to-transparent z-10" />
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent z-10" />
           )}
 
           {/* Right Side Fade Overlay */}
           {canScrollRight && (
-            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#060810] to-transparent z-10" />
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent z-10" />
           )}
 
           {/* Horizontal Scroll Row */}
@@ -1337,7 +1337,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   return (
     <div className="animate-fade-in pb-16">
       {/* Hero Header Banner */}
-      <div className="w-screen relative left-1/2 -translate-x-1/2 overflow-hidden border-0 bg-[#060810] shadow-2xl mb-8">
+      <div className="w-screen relative left-1/2 -translate-x-1/2 overflow-hidden border-0 bg-black shadow-2xl mb-8">
         {/* Backdrop background image aligned right with smooth left-to-right & bottom fade gradients */}
         {backdropUrl && (
           <div className="absolute right-0 top-0 bottom-0 w-full md:w-3/4 lg:w-2/3 h-full z-0 overflow-hidden pointer-events-none">
@@ -1347,9 +1347,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               className="w-full h-full object-cover object-center opacity-100"
             />
             {/* Left to Right Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#060810] via-[#060810]/60 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent z-10" />
             {/* Bottom Fade Overlay */}
-            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#060810] via-[#060810]/60 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/60 to-transparent z-10" />
           </div>
         )}
 
@@ -1524,7 +1524,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         {/* ========================================================================= */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           {/* DETAILS Box */}
-          <div className="bg-[#060810] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
               DETAILS
             </h3>
@@ -1588,7 +1588,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   setImageModalType('posters')
                   setShowImageModal(true)
                 }}
-                className="bg-[#060810] border border-slate-800/80 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
+                className="bg-[#0a0a0a] border border-slate-800/80 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
               >
                 <Film className="w-4 h-4 text-violet-400" />
                 Posters
@@ -1598,7 +1598,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   setImageModalType('backdrops')
                   setShowImageModal(true)
                 }}
-                className="bg-[#060810] border border-slate-800/80 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
+                className="bg-[#0a0a0a] border border-slate-800/80 hover:border-violet-500/30 py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md cursor-pointer"
               >
                 <Tag className="w-4 h-4 text-violet-400" />
                 Banners
@@ -1607,7 +1607,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           )}
 
           {/* RATINGS & SCORES Box */}
-          <div className="bg-[#060810] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <span>RATINGS & SCORES</span>
@@ -1669,7 +1669,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
 
           {/* WHERE TO WATCH Box */}
-          <div className="bg-[#060810] border border-slate-800 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
               Streaming Platforms
             </h3>
@@ -1712,7 +1712,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
 
           {/* EXTERNAL LINKS Box */}
-          <div className="bg-[#060810] border border-slate-800 rounded-2xl p-5 shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
               EXTERNAL LINKS
             </h3>
@@ -1739,7 +1739,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         <div className="lg:col-span-8 flex flex-col gap-6">
           {/* TV Show Progress & Episode Tracker Section */}
           {(type === 'tv' || item.type === 'tv') && seasons.length > 0 && (
-            <div className="bg-[#060810] border border-slate-800 rounded-2xl p-5 shadow-2xl">
+            <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -2407,7 +2407,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 <select
                   value={addStatus}
                   onChange={(e) => setAddStatus(e.target.value)}
-                  className="w-full bg-[#060810] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
+                  className="w-full bg-[#0a0a0a] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
                 >
                   <option value="completed">{(item.type || type) === 'game' ? 'Beaten' : 'Completed'}</option>
                   <option value="watching">{(item.type || type) === 'game' ? 'Playing' : 'Watching'}</option>
@@ -2426,7 +2426,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   value={addReview}
                   onChange={(e) => setAddReview(e.target.value)}
                   placeholder="Add personal notes or review..."
-                  className="w-full bg-[#060810] border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
+                  className="w-full bg-[#0a0a0a] border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
                 />
               </div>
             </div>

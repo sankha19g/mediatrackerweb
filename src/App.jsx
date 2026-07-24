@@ -619,7 +619,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-violet-600 selection:text-white antialiased">
+    <div className="min-h-screen bg-black text-slate-100 flex flex-col font-sans selection:bg-violet-600 selection:text-white antialiased">
       
       {/* Navigation Header */}
       <Navbar

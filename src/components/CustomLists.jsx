@@ -994,8 +994,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       {activeList ? (
         /* =================== DETAILED VIEW OF ACTIVE LIST =================== */
         <div className="space-y-6">
-          {/* Header Banner */}
-          <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 md:h-64 overflow-hidden shadow-2xl bg-slate-950 mb-8">
+          <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 md:h-64 overflow-hidden shadow-2xl bg-black mb-8">
             {/* Banner Image */}
             {activeList.banner_url || activeList.thumbnail_url ? (
               <img 
@@ -1004,11 +1003,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 className="w-full h-full object-cover opacity-95" 
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-slate-900 to-indigo-950/20 opacity-85" />
+              <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-black to-indigo-950/20 opacity-85" />
             )}
             
             {/* Bottom Fade Mask (Faded in below) */}
-            <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black via-black/70 to-transparent" />
             
             {/* Content overlay */}
             <div className="absolute inset-0 flex items-end">
