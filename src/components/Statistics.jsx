@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Film, Tv, BarChart2, Layers, CheckCircle2, Bookmark, Eye, Clock, List, Sparkles, TrendingUp, HelpCircle, Loader2, User } from 'lucide-react'
-import { fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
+import { Film, Tv, BarChart2, Layers, CheckCircle2, Bookmark, Eye, Clock, List, TrendingUp, HelpCircle, Loader2, User, Clapperboard, ChevronLeft, ChevronRight } from 'lucide-react'
+import { fetchTMDB } from '../lib/tmdb'
 
 // TMDB Genre Maps
 const MOVIE_GENRES = {
@@ -65,6 +65,14 @@ export default function Statistics({ items = [] }) {
       return {}
     }
   })
+  const [directorCache, setDirectorCache] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cinelog_director_cache')
+      return cached ? JSON.parse(cached) : {}
+    } catch {
+      return {}
+    }
+  })
   const [loadingGenres, setLoadingGenres] = useState(false)
   const [fetchingProgress, setFetchingProgress] = useState({ current: 0, total: 0 })
 
@@ -82,17 +90,34 @@ export default function Statistics({ items = [] }) {
   }
 
   const targetType = mediaType === 'movies' ? 'movie' : 'tv'
-  const filteredItems = items
-    .filter(item => item.type === targetType && item.status !== 'list_only')
-    .filter(item => !hideIndian || normalizeCountryName(item.country) !== 'India')
+  const filteredItems = React.useMemo(() => {
+    return items
+      .filter(item => item.type === targetType && item.status !== 'list_only')
+      .filter(item => !hideIndian || normalizeCountryName(item.country) !== 'India')
+  }, [items, targetType, hideIndian])
+
   const totalCount = filteredItems.length
 
   // Filter items by status
-  const completedItems = filteredItems.filter(item => item.status === 'completed')
-  const watchingItems = filteredItems.filter(item => item.status === 'watching')
-  const plannedItems = filteredItems.filter(item => item.status === 'planned')
-  const pendingItems = filteredItems.filter(item => item.status === 'pending')
-  const backlogItems = filteredItems.filter(item => item.status === 'backlog')
+  const completedItems = React.useMemo(() => {
+    return filteredItems.filter(item => item.status === 'completed')
+  }, [filteredItems])
+
+  const watchingItems = React.useMemo(() => {
+    return filteredItems.filter(item => item.status === 'watching')
+  }, [filteredItems])
+
+  const plannedItems = React.useMemo(() => {
+    return filteredItems.filter(item => item.status === 'planned')
+  }, [filteredItems])
+
+  const pendingItems = React.useMemo(() => {
+    return filteredItems.filter(item => item.status === 'pending')
+  }, [filteredItems])
+
+  const backlogItems = React.useMemo(() => {
+    return filteredItems.filter(item => item.status === 'backlog')
+  }, [filteredItems])
 
   // Resolve genres and cast metadata for completed items
   useEffect(() => {
@@ -107,7 +132,8 @@ export default function Statistics({ items = [] }) {
         const hasGenres = Array.isArray(item.genres) && item.genres.length > 0
         const hasGenresResolved = hasGenreIds || hasGenres || genreCache[item.tmdb_id]
         const hasActorsResolved = actorCache[item.tmdb_id]
-        return (!hasGenresResolved || !hasActorsResolved) && item.tmdb_id
+        const hasDirectorsResolved = directorCache[item.tmdb_id]
+        return (!hasGenresResolved || !hasActorsResolved || !hasDirectorsResolved) && item.tmdb_id
       })
 
       if (itemsToFetch.length === 0) return
@@ -117,6 +143,7 @@ export default function Statistics({ items = [] }) {
 
       let updatedGenreCache = { ...genreCache }
       let updatedActorCache = { ...actorCache }
+      let updatedDirectorCache = { ...directorCache }
       let count = 0
 
       for (const item of itemsToFetch) {
@@ -142,6 +169,27 @@ export default function Statistics({ items = [] }) {
               }))
             updatedActorCache[item.tmdb_id] = topCast
           }
+
+          if (details) {
+            let directors = []
+            if (details.credits && details.credits.crew) {
+              directors = details.credits.crew
+                .filter(member => member.job === 'Director')
+                .map(dir => ({
+                  id: dir.id,
+                  name: dir.name,
+                  profile_path: dir.profile_path
+                }))
+            }
+            if (directors.length === 0 && details.created_by) {
+              directors = details.created_by.map(creator => ({
+                id: creator.id,
+                name: creator.name,
+                profile_path: creator.profile_path
+              }))
+            }
+            updatedDirectorCache[item.tmdb_id] = directors
+          }
         } catch (err) {
           console.error(`Failed to fetch metadata for ${item.title}:`, err)
         }
@@ -154,8 +202,10 @@ export default function Statistics({ items = [] }) {
       if (active) {
         setGenreCache(updatedGenreCache)
         setActorCache(updatedActorCache)
+        setDirectorCache(updatedDirectorCache)
         localStorage.setItem('cinelog_genre_cache', JSON.stringify(updatedGenreCache))
         localStorage.setItem('cinelog_actor_cache', JSON.stringify(updatedActorCache))
+        localStorage.setItem('cinelog_director_cache', JSON.stringify(updatedDirectorCache))
         setLoadingGenres(false)
       }
     }
@@ -164,6 +214,7 @@ export default function Statistics({ items = [] }) {
     return () => {
       active = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, mediaType])
 
   // Aggregate genres from completed items
@@ -229,9 +280,90 @@ export default function Statistics({ items = [] }) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
   }, [completedItems, actorCache])
+ 
+  // Aggregate directors from completed items
+  const directorCounts = React.useMemo(() => {
+    const counts = {}
+
+    completedItems.forEach(item => {
+      if (item.tmdb_id && directorCache[item.tmdb_id]) {
+        directorCache[item.tmdb_id].forEach(director => {
+          if (!director.id) return
+          if (!counts[director.id]) {
+            counts[director.id] = {
+              id: director.id,
+              name: director.name,
+              profile_path: director.profile_path,
+              count: 0
+            }
+          }
+          counts[director.id].count += 1
+        })
+      }
+    })
+
+    return Object.values(counts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+  }, [completedItems, directorCache])
 
   const topGenre = genreCounts.length > 0 ? genreCounts[0].name : 'N/A'
   const completionRate = totalCount > 0 ? Math.round((completedItems.length / totalCount) * 100) : 0
+
+  // Horizontal Scroll & Arrow state hooks for Top Actors/Directors
+  const actorsScrollRef = useRef(null)
+  const directorsScrollRef = useRef(null)
+  const [actorsScrollState, setActorsScrollState] = useState({ canLeft: false, canRight: true })
+  const [directorsScrollState, setDirectorsScrollState] = useState({ canLeft: false, canRight: true })
+
+  const checkScrollState = (ref, setter) => {
+    if (ref.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = ref.current
+      setter({
+        canLeft: scrollLeft > 10,
+        canRight: scrollLeft + clientWidth < scrollWidth - 10
+      })
+    }
+  }
+
+  const scrollContainer = (ref, direction) => {
+    if (ref.current) {
+      const { scrollLeft, clientWidth } = ref.current
+      const amount = clientWidth * 0.75
+      ref.current.scrollTo({
+        left: direction === 'left' ? scrollLeft - amount : scrollLeft + amount,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  useEffect(() => {
+    const actEl = actorsScrollRef.current
+    const checkAct = () => checkScrollState(actorsScrollRef, setActorsScrollState)
+    if (actEl) {
+      actEl.addEventListener('scroll', checkAct)
+      window.addEventListener('resize', checkAct)
+      setTimeout(checkAct, 150)
+    }
+    return () => {
+      if (actEl) actEl.removeEventListener('scroll', checkAct)
+      window.removeEventListener('resize', checkAct)
+    }
+  }, [actorCounts])
+
+  useEffect(() => {
+    const dirEl = directorsScrollRef.current
+    const checkDir = () => checkScrollState(directorsScrollRef, setDirectorsScrollState)
+    if (dirEl) {
+      dirEl.addEventListener('scroll', checkDir)
+      window.addEventListener('resize', checkDir)
+      setTimeout(checkDir, 150)
+    }
+    return () => {
+      if (dirEl) dirEl.removeEventListener('scroll', checkDir)
+      window.removeEventListener('resize', checkDir)
+    }
+  }, [directorCounts])
 
   const getStatusColorClass = (status) => {
     switch (status) {
@@ -263,7 +395,7 @@ export default function Statistics({ items = [] }) {
     { id: 'backlog', label: 'Backlog', count: backlogItems.length, icon: Layers }
   ]
 
-  const maxGenreCount = genreCounts.length > 0 ? genreCounts[0].count : 1
+
 
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto animate-fade-in text-slate-100">
@@ -325,7 +457,7 @@ export default function Statistics({ items = [] }) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
         <div className="bg-[#060810] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Added</span>
           <div className="flex items-baseline gap-2 mt-2">
@@ -335,18 +467,6 @@ export default function Statistics({ items = [] }) {
           <p className="text-[10px] text-slate-500 mt-2">
             All tracked {mediaType === 'movies' ? 'movies' : 'TV shows'} in your library
           </p>
-        </div>
-
-        <div className="bg-[#060810] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Completion Rate</span>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-3xl font-black text-emerald-400">{completionRate}%</span>
-            <span className="text-xs font-semibold text-emerald-500/80">finished</span>
-          </div>
-          {/* Subtle Mini Progress Bar */}
-          <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2">
-            <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${completionRate}%` }} />
-          </div>
         </div>
 
         <div className="bg-[#060810] border border-slate-800/60 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all">
@@ -378,12 +498,10 @@ export default function Statistics({ items = [] }) {
                 <tr className="bg-[#080b16] border-b border-slate-850">
                   <th className="px-4 py-3 text-xs font-bold text-slate-400">List Status</th>
                   <th className="px-4 py-3 text-xs font-bold text-slate-400 text-right">Items</th>
-                  <th className="px-4 py-3 text-xs font-bold text-slate-400 w-1/3">Ratio</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-850 bg-transparent">
                 {statusRows.map(row => {
-                  const percentage = totalCount > 0 ? Math.round((row.count / totalCount) * 100) : 0
                   const IconComp = row.icon
                   return (
                     <tr key={row.id} className="hover:bg-[#0c1022]/30 transition-colors">
@@ -397,19 +515,6 @@ export default function Statistics({ items = [] }) {
                         <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColorClass(row.id)}`}>
                           {row.count}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-full bg-slate-900/60 border border-slate-850/40 rounded-full h-2 overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ${getStatusPillColor(row.id)}`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-[11px] font-bold text-slate-500 w-8 text-right">
-                            {percentage}%
-                          </span>
-                        </div>
                       </td>
                     </tr>
                   )
@@ -490,9 +595,41 @@ export default function Statistics({ items = [] }) {
 
       {/* Top 10 Actors Section */}
       <div className="mt-8 bg-[#060810]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
-        <div className="flex items-center gap-2.5 mb-6">
-          <User className="w-5 h-5 text-violet-400" />
-          <h3 className="text-base font-extrabold text-white">Top 10 Most Watched Actors</h3>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2.5">
+            <User className="w-5 h-5 text-violet-400" />
+            <h3 className="text-base font-extrabold text-white">Top 10 Most Watched Actors</h3>
+          </div>
+          {actorCounts.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => scrollContainer(actorsScrollRef, 'left')}
+                disabled={!actorsScrollState.canLeft}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                  actorsScrollState.canLeft
+                    ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                    : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                }`}
+                title="Scroll Left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollContainer(actorsScrollRef, 'right')}
+                disabled={!actorsScrollState.canRight}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                  actorsScrollState.canRight
+                    ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                    : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                }`}
+                title="Scroll Right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {completedItems.length === 0 ? (
@@ -521,20 +658,23 @@ export default function Statistics({ items = [] }) {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-4">
+          <div 
+            ref={actorsScrollRef}
+            className="flex gap-6 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+          >
             {actorCounts.map((actor, idx) => (
               <div 
                 key={actor.id} 
-                onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: actor.id, name: actor.name } } })}
-                className="flex flex-col items-center text-center p-2.5 transition-all hover:-translate-y-1 group/actor relative cursor-pointer"
+                onClick={() => navigate(`/explore_tmdb?type=person&id=${actor.id}&name=${encodeURIComponent(actor.name)}`)}
+                className="w-28 sm:w-32 flex-shrink-0 flex flex-col items-center text-center p-2 transition-all hover:-translate-y-1 group/actor relative cursor-pointer"
               >
                 {/* Rank Badge */}
-                <span className="absolute top-1 left-1 text-[11px] font-black text-slate-500 group-hover/actor:text-violet-400 transition-colors">
+                <span className="absolute top-1 left-2 text-[11px] font-black text-slate-500 group-hover/actor:text-violet-400 transition-colors">
                   #{idx + 1}
                 </span>
 
                 {/* Actor Avatar */}
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-950 border border-slate-850 flex items-center justify-center flex-shrink-0 group-hover/actor:scale-105 transition-transform duration-300 shadow-md">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-slate-950 border border-slate-850 flex items-center justify-center flex-shrink-0 group-hover/actor:scale-105 transition-transform duration-300 shadow-md">
                   {actor.profile_path ? (
                     <img 
                       src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`} 
@@ -543,20 +683,125 @@ export default function Statistics({ items = [] }) {
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-tr from-violet-600/30 to-indigo-600/30 flex items-center justify-center font-black text-violet-300 text-sm">
+                    <div className="w-full h-full bg-gradient-to-tr from-violet-600/30 to-indigo-600/30 flex items-center justify-center font-black text-violet-300 text-base">
                       {actor.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                   )}
                 </div>
 
-                {/* Actor Names & Project Count */}
+                {/* Actor Names */}
                 <div className="mt-3 w-full">
-                  <h4 className="text-xs font-bold text-slate-200 line-clamp-1 group-hover/actor:text-violet-400 transition-colors" title={actor.name}>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-200 line-clamp-2 group-hover/actor:text-violet-400 transition-colors" title={actor.name}>
                     {actor.name}
                   </h4>
-                  <span className="text-[10px] font-bold text-slate-500 mt-1 block">
-                    {actor.count} {actor.count === 1 ? 'project' : 'projects'}
-                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Top 10 Directors Section */}
+      <div className="mt-8 bg-[#060810]/60 border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-md relative overflow-hidden">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2.5">
+            <Clapperboard className="w-5 h-5 text-violet-400" />
+            <h3 className="text-base font-extrabold text-white">Top 10 Most Watched Directors</h3>
+          </div>
+          {directorCounts.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => scrollContainer(directorsScrollRef, 'left')}
+                disabled={!directorsScrollState.canLeft}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                  directorsScrollState.canLeft
+                    ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                    : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                }`}
+                title="Scroll Left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollContainer(directorsScrollRef, 'right')}
+                disabled={!directorsScrollState.canRight}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                  directorsScrollState.canRight
+                    ? 'bg-[#101424] border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                    : 'bg-[#090c15] border-slate-900 text-slate-700 cursor-not-allowed opacity-30'
+                }`}
+                title="Scroll Right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {completedItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Clapperboard className="w-12 h-12 text-slate-600 mb-3" />
+            <p className="text-sm font-semibold text-slate-400">No completed items yet</p>
+            <p className="text-xs text-slate-500 max-w-[240px] mt-1">
+              Mark movies or shows as completed to see director analysis.
+            </p>
+          </div>
+        ) : directorCounts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            {loadingGenres ? (
+              <>
+                <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-3" />
+                <p className="text-sm font-semibold text-slate-400">Resolving crew details from TMDB...</p>
+              </>
+            ) : (
+              <>
+                <HelpCircle className="w-10 h-10 text-slate-600 mb-3" />
+                <p className="text-sm font-semibold text-slate-400">No director details available</p>
+                <p className="text-xs text-slate-500 max-w-[280px] mt-1">
+                  Ensure TMDB API Key is configured in settings to retrieve crew details.
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div 
+            ref={directorsScrollRef}
+            className="flex gap-6 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+          >
+            {directorCounts.map((director, idx) => (
+              <div 
+                key={director.id} 
+                onClick={() => navigate(`/explore_tmdb?type=person&id=${director.id}&name=${encodeURIComponent(director.name)}`)}
+                className="w-28 sm:w-32 flex-shrink-0 flex flex-col items-center text-center p-2 transition-all hover:-translate-y-1 group/director relative cursor-pointer"
+              >
+                {/* Rank Badge */}
+                <span className="absolute top-1 left-2 text-[11px] font-black text-slate-500 group-hover/director:text-violet-400 transition-colors">
+                  #{idx + 1}
+                </span>
+
+                {/* Director Avatar */}
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-slate-950 border border-slate-850 flex items-center justify-center flex-shrink-0 group-hover/director:scale-105 transition-transform duration-300 shadow-md">
+                  {director.profile_path ? (
+                    <img 
+                      src={`https://image.tmdb.org/t/p/w185${director.profile_path}`} 
+                      alt={director.name} 
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-tr from-violet-600/30 to-indigo-600/30 flex items-center justify-center font-black text-violet-300 text-base">
+                      {director.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Director Names */}
+                <div className="mt-3 w-full">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-200 line-clamp-2 group-hover/director:text-violet-400 transition-colors" title={director.name}>
+                    {director.name}
+                  </h4>
                 </div>
               </div>
             ))}

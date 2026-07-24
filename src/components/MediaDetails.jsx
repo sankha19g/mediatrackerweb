@@ -101,7 +101,7 @@ const CastCarousel = ({ cast, navigate }) => {
   const displayedCast = showAll ? cast : cast
 
   return (
-    <div className="bg-[#060810] border border-slate-800/80 rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
+    <div className="bg-[#060810] rounded-2xl p-5 shadow-2xl relative group/cast mb-6">
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-base font-bold text-white tracking-wide">Top Cast</h4>
 
@@ -151,7 +151,7 @@ const CastCarousel = ({ cast, navigate }) => {
           {cast.map(actor => (
             <div
               key={actor.id}
-              onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: actor.id, name: actor.name } } })}
+              onClick={() => navigate(`/explore_tmdb?type=person&id=${actor.id}&name=${encodeURIComponent(actor.name)}`)}
               className="bg-[#101424] border border-slate-800 hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md group/actor cursor-pointer transition-all duration-300"
             >
               <div className="aspect-[3/4] w-full bg-slate-950 relative overflow-hidden">
@@ -200,7 +200,7 @@ const CastCarousel = ({ cast, navigate }) => {
             {displayedCast.map(actor => (
               <div
                 key={actor.id}
-                onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: actor.id, name: actor.name } } })}
+                onClick={() => navigate(`/explore_tmdb?type=person&id=${actor.id}&name=${encodeURIComponent(actor.name)}`)}
                 className="w-28 sm:w-36 flex-shrink-0 bg-[#101424]  hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md transition-all duration-300 hover:-translate-y-0.5 group/actor cursor-pointer"
               >
                 <div className="aspect-[3/4] w-full bg-slate-950 relative overflow-hidden">
@@ -1335,20 +1335,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   }
 
   return (
-    <div className="animate-fade-in pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Back Navigation Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
-      </div>
-
+    <div className="animate-fade-in pb-16">
       {/* Hero Header Banner */}
-      <div className="relative rounded-3xl overflow-hidden border-0 bg-[#060810] shadow-2xl mb-8">
+      <div className="w-screen relative left-1/2 -translate-x-1/2 overflow-hidden border-0 bg-[#060810] shadow-2xl mb-8">
         {/* Backdrop background image aligned right with smooth left-to-right & bottom fade gradients */}
         {backdropUrl && (
           <div className="absolute right-0 top-0 bottom-0 w-full md:w-3/4 lg:w-2/3 h-full z-0 overflow-hidden pointer-events-none">
@@ -1364,8 +1353,21 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
         )}
 
-        {/* Main Hero Card Content */}
-        <div className="relative z-10 p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
+        {/* Centered content wrapper */}
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 relative z-10">
+          {/* Back Navigation Header */}
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
+          </div>
+
+          {/* Main Hero Card Content */}
+          <div className="flex flex-col md:flex-row gap-6 sm:gap-8 items-start pb-6 sm:pb-8">
           {/* Poster */}
           <div className="w-36 sm:w-44 md:w-52 aspect-[2/3] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex-shrink-0 bg-slate-950">
             <img
@@ -1512,9 +1514,11 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
         </div>
       </div>
+    </div>
 
       {/* Main 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ========================================================================= */}
         {/* LEFT SIDEBAR COLUMN (lg:col-span-4) */}
         {/* ========================================================================= */}
@@ -1534,7 +1538,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 <span className="text-slate-400 font-medium">Director</span>
                 {directorObj ? (
                   <span
-                    onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'person', id: directorObj.id, name: directorObj.name } } })}
+                    onClick={() => navigate(`/explore_tmdb?type=person&id=${directorObj.id}&name=${encodeURIComponent(directorObj.name)}`)}
                     className="text-violet-400 font-bold hover:underline cursor-pointer transition-colors max-w-[160px] truncate text-right"
                   >
                     {directorName}
@@ -1550,7 +1554,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     {details.production_companies.slice(0, 2).map(studio => (
                       <span
                         key={studio.id}
-                        onClick={() => navigate('/explore_tmdb', { state: { activeDetail: { type: 'company', id: studio.id, name: studio.name } } })}
+                        onClick={() => navigate(`/explore_tmdb?type=company&id=${studio.id}&name=${encodeURIComponent(studio.name)}`)}
                         className="text-violet-400 font-bold hover:underline cursor-pointer transition-colors text-right leading-tight"
                       >
                         {studio.name}
@@ -2123,6 +2127,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           )}
         </div>
       </div>
+    </div>
 
       {/* Trailer Modal Overlay */}
       {isTrailerOpen && trailer && (

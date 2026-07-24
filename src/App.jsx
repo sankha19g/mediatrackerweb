@@ -80,9 +80,21 @@ export default function App() {
     return () => unsubscribe()
   }, [])
 
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('')
+  const [globalSelectMode, setGlobalSelectMode] = useState(false)
+
   useEffect(() => {
     localStorage.setItem('cinelog_current_tab', currentTab)
   }, [currentTab])
+
+  useEffect(() => {
+    const isExplorePage = location.pathname.startsWith('/explore_tmdb')
+    const isMediaPage = location.pathname.startsWith('/media/') || location.pathname.startsWith('/explore/')
+    if (!isExplorePage && !isMediaPage) {
+      setGlobalSearchQuery('')
+      setGlobalSelectMode(false)
+    }
+  }, [location.pathname])
 
   // Local Storage loaders
   const loadLocalItems = () => {
@@ -619,6 +631,10 @@ export default function App() {
         onNavigateToAuth={() => navigate('/auth')}
         onNavigateToSettings={() => navigate('/settings')}
         activeView={activeView}
+        searchQuery={globalSearchQuery}
+        setSearchQuery={setGlobalSearchQuery}
+        isSelectMode={globalSelectMode}
+        setIsSelectMode={setGlobalSelectMode}
       />
 
       {/* Hamburger Sidebar Navigation */}
@@ -710,6 +726,10 @@ export default function App() {
                   onAddItems={handleAddItems}
                   onRemoveItem={handleRemoveItem}
                   user={user}
+                  query={globalSearchQuery}
+                  setQuery={setGlobalSearchQuery}
+                  isSelectMode={globalSelectMode}
+                  setIsSelectMode={setGlobalSelectMode}
                 />
               } />
               

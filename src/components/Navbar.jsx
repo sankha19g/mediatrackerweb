@@ -1,7 +1,7 @@
 import React from 'react'
-import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad } from 'lucide-react'
+import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad, Search, X, ListChecks } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 export default function Navbar({ 
   currentTab, 
@@ -11,10 +11,24 @@ export default function Navbar({
   onLogout, 
   onNavigateToAuth, 
   onNavigateToSettings,
-  activeView 
+  activeView,
+  searchQuery = '',
+  setSearchQuery,
+  isSelectMode = false,
+  setIsSelectMode
 }) {
   const isAuthEnabled = isFirebaseConfigured()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const isExplorePage = location.pathname.startsWith('/explore_tmdb')
+  const isMediaPage = location.pathname.startsWith('/media/') || location.pathname.startsWith('/explore/')
+  const shouldShowSearch = isExplorePage || isMediaPage
+
+  const params = new URLSearchParams(location.search)
+  const isPersonOrCompany = params.has('type')
+  const isSearching = searchQuery.trim().length >= 3
+  const showSelectButton = isExplorePage && (!isPersonOrCompany || isSearching)
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-900 bg-slate-950/80 backdrop-blur-md">
@@ -75,6 +89,52 @@ export default function Navbar({
         {activeView === 'watchlist' && (
           <div className="md:hidden font-semibold text-sm text-violet-400 border border-violet-950/40 bg-violet-950/15 px-3 py-1 rounded-full">
             {currentTab === 'movie' ? 'Movies' : currentTab === 'tv' ? 'TV Shows' : 'Games'}
+          </div>
+        )}
+
+        {/* Search Bar & Multi-Select Action Button for Explore/Media pages */}
+        {shouldShowSearch && (
+          <div className="flex items-center gap-3 flex-1 max-w-xl mx-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setSearchQuery(val)
+                  if (val.trim().length >= 3 && location.pathname !== '/explore_tmdb') {
+                    navigate('/explore_tmdb')
+                  }
+                }}
+                placeholder="Search all Movies, TV Shows, People..."
+                className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl pl-9 pr-8 py-2 text-white text-sm placeholder-slate-500 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {showSelectButton && (
+              <button
+                type="button"
+                onClick={() => setIsSelectMode(!isSelectMode)}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap ${
+                  isSelectMode
+                    ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
+                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+                title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isSelectMode ? 'Cancel' : 'Select'}</span>
+              </button>
+            )}
           </div>
         )}
 

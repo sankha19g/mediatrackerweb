@@ -110,12 +110,15 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   const [hideIndian, setHideIndian] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
+  const [activeListId, setActiveListId] = useState(null)
+
   useEffect(() => {
     setYearFilter('all')
     setLanguageFilter('all')
     setCountryFilter('all')
     setHideIndian(false)
     setCurrentPage(1)
+    setActiveListId(null)
   }, [typeFilter])
 
   useEffect(() => {
@@ -124,6 +127,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
   useEffect(() => {
     localStorage.setItem('cinelog_status_filter', statusFilter)
+    if (statusFilter !== 'lists') {
+      setActiveListId(null)
+    }
   }, [statusFilter])
 
   // Auto-fill missing original_language and country for existing items with tmdb_id
@@ -573,48 +579,53 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     if (status === 'backlog') return 'Backlog'
     return 'Planned'
   }
+
   if (statusFilter === 'lists') {
     return (
-      <div className="py-6 px-4">
-        {/* Grid Header & Statistics */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              {typeFilter === 'movie' && <Film className="w-6 h-6 text-violet-400" />}
-              {typeFilter === 'tv' && <Tv className="w-6 h-6 text-violet-400" />}
-              {typeFilter === 'game' && <Gamepad className="w-6 h-6 text-violet-400" />}
-              My Custom {getTypeLabel()} Lists
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Create and manage your custom categories and collections of {getTypeLabel().toLowerCase()}.
-            </p>
-          </div>
-        </div>
+      <div className={activeListId ? "pb-16" : "py-6 px-4"}>
+        {!activeListId && (
+          <>
+            {/* Grid Header & Statistics */}
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                  {typeFilter === 'movie' && <Film className="w-6 h-6 text-violet-400" />}
+                  {typeFilter === 'tv' && <Tv className="w-6 h-6 text-violet-400" />}
+                  {typeFilter === 'game' && <Gamepad className="w-6 h-6 text-violet-400" />}
+                  My Custom {getTypeLabel()} Lists
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Create and manage your custom categories and collections of {getTypeLabel().toLowerCase()}.
+                </p>
+              </div>
+            </div>
 
-        {/* Watch Status Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
-          {[
-            { id: 'all', label: 'All Items' },
-            { id: 'completed', label: typeFilter === 'game' ? 'Beaten' : 'Completed' },
-            { id: 'watching', label: typeFilter === 'game' ? 'Playing' : 'Watching' },
-            { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
-            { id: 'planned', label: 'Planned' },
-            typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
-            { id: 'lists', label: 'Custom Lists' }
-          ].filter(Boolean).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === tab.id
-                  ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+            {/* Watch Status Tabs */}
+            <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
+              {[
+                { id: 'all', label: 'All Items' },
+                { id: 'completed', label: typeFilter === 'game' ? 'Beaten' : 'Completed' },
+                { id: 'watching', label: typeFilter === 'game' ? 'Playing' : 'Watching' },
+                { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
+                { id: 'planned', label: 'Planned' },
+                typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
+                { id: 'lists', label: 'Custom Lists' }
+              ].filter(Boolean).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                    statusFilter === tab.id
+                      ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
+                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <CustomLists
           typeFilter={typeFilter}
@@ -624,6 +635,8 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           onAddItem={onAddItem}
           onAddItems={onAddItems}
           onUpdateItem={onUpdateItem}
+          activeListId={activeListId}
+          setActiveListId={setActiveListId}
         />
       </div>
     )

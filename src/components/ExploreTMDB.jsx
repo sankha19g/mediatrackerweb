@@ -466,22 +466,22 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
   }).length
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Back Header */}
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-        <button 
-          onClick={onBack}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {isFromState ? 'Back' : 'Back to Explore'}
-        </button>
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-          {isPerson ? 'Artist Profile' : 'Production Studio'}
-        </span>
-      </div>
+    <div className="animate-fade-in">
       {/* Backdrop collage / blur banner */}
-      <div className="relative h-48 sm:h-64 w-full rounded-3xl overflow-hidden z-0 bg-slate-950">
+      <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 sm:h-64 overflow-hidden z-0 bg-slate-950 mb-8">
+        {/* Overlaid back button & title */}
+        <div className="absolute inset-x-0 top-0 z-20 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 flex items-center justify-between">
+          <button 
+            onClick={onBack}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {isFromState ? 'Back' : 'Back to Explore'}
+          </button>
+          <span className="text-xs font-bold text-slate-400 bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full border border-slate-800 uppercase tracking-wider">
+            {isPerson ? 'Artist Profile' : 'Production Studio'}
+          </span>
+        </div>
         {isPerson && profileImages.length > 0 ? (
           <div className="absolute inset-0 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 opacity-35 filter blur-[0.5px]">
             {profileImages.slice(0, 5).map((path, idx) => (
@@ -515,8 +515,10 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-transparent to-slate-950 z-10" />
       </div>
 
-      {/* Profile/Detail Banner Header */}
-      <div className="relative z-10 bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start shadow-2xl -mt-20 sm:-mt-28">
+      {/* Centered Profile Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-16">
+        {/* Profile/Detail Banner Header */}
+        <div className="relative z-10 bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start shadow-2xl -mt-20 sm:-mt-28">
         {/* Poster / Logo */}
         <div className={`w-32 sm:w-40 aspect-[2/3] rounded-2xl overflow-hidden border shadow-2xl flex-shrink-0 flex items-center justify-center ${!isPerson ? 'bg-white border-slate-200 p-4' : 'bg-slate-950 border-slate-800'}`}>
           {isPerson ? (
@@ -823,6 +825,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
         )}
       </div>
     </div>
+  </div>
   )
 }
 
@@ -908,8 +911,17 @@ function ScrollableRow({ children }) {
   )
 }
 
-export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, onRemoveItem, user }) {
-  const [query, setQuery] = useState('')
+export default function ExploreTMDB({ 
+  watchedItems = [], 
+  onAddItem, 
+  onAddItems, 
+  onRemoveItem, 
+  user,
+  query,
+  setQuery,
+  isSelectMode,
+  setIsSelectMode
+}) {
   const [searchFilter, setSearchFilter] = useState('all') // 'all' | 'movie' | 'tv' | 'person' | 'company'
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
@@ -936,7 +948,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
   const [userStatus, setUserStatus] = useState('completed')
 
   // Selection states for Bulk Add
-  const [isSelectMode, setIsSelectMode] = useState(false)
+
   const [selectedItems, setSelectedItems] = useState({})
   const [lists, setLists] = useState([])
 
@@ -950,8 +962,23 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
       setActiveDetail(location.state.activeDetail)
       setWasStateDeepLink(true)
       window.history.replaceState({}, document.title)
+      return
     }
-  }, [location.state])
+
+    // Parse query parameters (?type=person&id=123&name=Actor)
+    const params = new URLSearchParams(location.search)
+    const type = params.get('type')
+    const id = params.get('id')
+    const name = params.get('name')
+
+    if (type && id) {
+      setActiveDetail({ type, id: parseInt(id) || id, name: name ? decodeURIComponent(name) : '' })
+      setWasStateDeepLink(true)
+    } else {
+      setActiveDetail(null)
+      setWasStateDeepLink(false)
+    }
+  }, [location])
 
   // Load custom lists
   useEffect(() => {
@@ -1016,7 +1043,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
 
   // Live Unified Search (including People and Companies)
   useEffect(() => {
-    if (!query.trim()) {
+    if (query.trim().length < 3) {
       setSearchResults([])
       setIsSearching(false)
       return
@@ -1356,7 +1383,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
   }
 
   return (
-    <div className="py-4 px-2 sm:px-4 max-w-7xl mx-auto space-y-8">
+    <div className="animate-fade-in pb-16">
       {activeDetail ? (
         <DetailView 
           detail={activeDetail} 
@@ -1374,66 +1401,155 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
         />
       ) : (
         <>
-          {/* Demo Mode Notice */}
-      {isDemo && (
-        <div className="flex justify-end">
-          <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl px-4 py-2 text-xs text-amber-300 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            Demo Mode. Add your TMDB API Key in Settings for live data.
-          </div>
-        </div>
-      )}
 
-      {/* Top Search & Filter Section */}
-      <div className="flex flex-row items-center justify-between gap-3 w-full">
-        <div className="relative flex-1 max-w-2xl">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search all Movies & TV Shows by title..."
-            className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-2xl pl-12 pr-10 py-3.5 text-white text-base placeholder-slate-500 transition-all shadow-xl"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+
+          {/* Featured Slideshow Banner (Only when not searching) */}
+          {query.trim().length < 3 && featuredSlides.length > 0 && (
+            <div
+              className="relative w-screen left-1/2 -translate-x-1/2 min-h-[380px] sm:min-h-[440px] md:min-h-[480px] overflow-hidden shadow-2xl transition-all duration-700 group/hero mb-8"
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => setIsPaused(false)}
             >
-              <X className="w-5 h-5" />
-            </button>
+              {/* Faded Slides Container */}
+              <div className="relative w-full h-full min-h-[380px] sm:min-h-[440px] md:min-h-[480px]">
+                {featuredSlides.map((slide, idx) => {
+                  const isActive = idx === bannerIndex;
+                  return (
+                    <div
+                      key={slide.id || idx}
+                      className={`absolute inset-0 w-full h-full flex flex-col justify-end overflow-hidden transition-opacity duration-1000 ease-in-out ${
+                        isActive 
+                          ? 'opacity-100 z-10 pointer-events-auto' 
+                          : 'opacity-0 z-0 pointer-events-none'
+                      }`}
+                    >
+                      {/* Background Backdrop Image */}
+                      <div className="absolute inset-0 bg-slate-950 overflow-hidden">
+                        <img
+                          src={`https://image.tmdb.org/t/p/w1280${slide.backdrop_path || slide.poster_path}`}
+                          alt={slide.title || slide.name}
+                          className={`w-full h-full object-cover object-top opacity-100 transition-transform duration-[30000ms] ease-out ${
+                            isActive ? 'scale-[1.07]' : 'scale-100'
+                          }`}
+                        />
+                        {/* Only bottom fade overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+                      </div>
+
+                      {/* Slide Details Content Wrapper (Constrained and centered) */}
+                      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+                        <div className="max-w-2xl space-y-4">
+                          {/* Media Type & Trending Pill */}
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 backdrop-blur-md">
+                              <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> #{idx + 1} Trending This Week
+                            </span>
+                            <span className={`text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg backdrop-blur-md border ${
+                              getItemMediaType(slide) === 'movie' 
+                                ? 'bg-sky-500/20 border-sky-400/40 text-sky-300' 
+                                : 'bg-indigo-500/20 border-indigo-400/40 text-indigo-300'
+                            }`}>
+                              {getItemMediaType(slide) === 'movie' ? 'Movie' : 'TV Show'}
+                            </span>
+                          </div>
+
+                          {/* Title */}
+                          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-md">
+                            {slide.title || slide.name}
+                          </h1>
+
+                          {/* Sub-info Bad--ges */}
+                          <div className="flex items-center flex-wrap gap-3 text-xs sm:text-sm font-semibold text-slate-300">
+                            <span className="flex items-center gap-1 text-amber-400 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
+                              <Star className="w-4 h-4 fill-amber-400" />
+                              {(slide.vote_average || 0).toFixed(1)} TMDB
+                            </span>
+                            <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
+                              {slide.release_date ? slide.release_date.split('-')[0] : (slide.first_air_date ? slide.first_air_date.split('-')[0] : 'N/A')}
+                            </span>
+                            <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg uppercase">
+                              {slide.original_language || 'EN'}
+                            </span>
+                          </div>
+
+                          {/* Overview */}
+                          <p className="text-xs sm:text-sm text-slate-300 line-clamp-3 leading-relaxed max-w-xl font-medium">
+                            {slide.overview || 'No synopsis available for this title.'}
+                          </p>
+
+                          {/* Hero Action Buttons */}
+                          <div className="flex items-center gap-3 pt-2">
+                            <button
+                              onClick={() => openAddDialog(slide)}
+                              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 shadow-xl shadow-violet-600/30 cursor-pointer active:scale-95 transition-all"
+                            >
+                              <Plus className="w-4 h-4" /> Add to Library
+                            </button>
+
+                            <button
+                              onClick={() => navigate(`/explore/${getItemMediaType(slide)}/${slide.id}`)}
+                              className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 backdrop-blur-md cursor-pointer transition-all"
+                            >
+                              <Info className="w-4 h-4 text-violet-400" /> Details & Seasons
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Manual Carousel Arrow Controls */}
+              <div className="absolute right-4 top-4 sm:top-auto sm:bottom-6 z-20 flex items-center gap-2">
+                <button
+                  onClick={() => setBannerIndex(prev => (prev === 0 ? featuredSlides.length - 1 : prev - 1))}
+                  className="w-10 h-10 rounded-2xl bg-slate-950/80 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer hover:border-slate-600 shadow-xl"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setBannerIndex(prev => (prev + 1) % featuredSlides.length)}
+                  className="w-10 h-10 rounded-2xl bg-slate-950/80 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer hover:border-slate-600 shadow-xl"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Bottom Dot Indicators */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
+                {featuredSlides.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setBannerIndex(idx)}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      idx === bannerIndex ? 'w-6 bg-violet-500' : 'w-1.5 bg-slate-700 hover:bg-slate-500'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
           )}
-        </div>
 
-        {/* Multi-Select Control Toggle */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSelectMode(!isSelectMode)
-              setSelectedItems({})
-            }}
-            className={`flex items-center justify-center gap-2 p-3.5 sm:px-4 sm:py-3.5 rounded-2xl border text-xs sm:text-sm font-semibold cursor-pointer transition-all whitespace-nowrap ${
-              isSelectMode
-                ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
-                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
-            }`}
-            title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
-          >
-            <ListChecks className="w-4 h-4" />
-            <span className="hidden sm:inline">{isSelectMode ? 'Cancel Selection' : 'Select Items'}</span>
-          </button>
-        </div>
-      </div>
+          {/* Centered Page Content */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 mt-6">
+            {/* Demo Mode Notice */}
+            {isDemo && (
+              <div className="flex justify-end">
+                <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl px-4 py-2 text-xs text-amber-300 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  Demo Mode. Add your TMDB API Key in Settings for live data.
+                </div>
+              </div>
+            )}
 
-      {error && (
-        <div className="max-w-md mx-auto p-4 bg-rose-950/20 border border-rose-500/20 text-rose-300 text-center rounded-xl text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* ────────────────── SEARCH RESULTS VIEW ────────────────── */}
-      {query.trim() ? (
+            {error && (
+              <div className="max-w-md mx-auto p-4 bg-rose-950/20 border border-rose-500/20 text-rose-300 text-center rounded-xl text-sm">
+                {error}
+              </div>
+            )}
+            {/* ────────────────── SEARCH RESULTS VIEW ────────────────── */}
+            {query.trim().length >= 3 ? (
         <div className="space-y-6 animate-fade-in">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1557,131 +1673,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
         /* ────────────────── UNIFIED DASHBOARD FEED ────────────────── */
         <div className="space-y-12">
 
-          {/* FEATURED HERO BANNER SLIDESHOW WITH FADED TRANSITION */}
-          {featuredSlides.length > 0 && (
-            <div
-              className="relative w-full min-h-[380px] sm:min-h-[440px] md:min-h-[480px] rounded-3xl overflow-hidden shadow-2xl transition-all duration-700 group/hero"
-              onMouseEnter={() => setIsPaused(true)}
-              onMouseLeave={() => setIsPaused(false)}
-            >
-              {/* Faded Slides Container */}
-              <div className="relative w-full h-full min-h-[380px] sm:min-h-[440px] md:min-h-[480px]">
-                {featuredSlides.map((slide, idx) => {
-                  const isActive = idx === bannerIndex;
-                  return (
-                    <div
-                      key={slide.id || idx}
-                      className={`absolute inset-0 w-full h-full flex flex-col justify-end overflow-hidden transition-opacity duration-1000 ease-in-out ${
-                        isActive 
-                          ? 'opacity-100 z-10 pointer-events-auto' 
-                          : 'opacity-0 z-0 pointer-events-none'
-                      }`}
-                    >
-                      {/* Background Backdrop Image */}
-                      <div className="absolute inset-0 bg-slate-950 overflow-hidden">
-                        <img
-                          src={`https://image.tmdb.org/t/p/w1280${slide.backdrop_path || slide.poster_path}`}
-                          alt={slide.title || slide.name}
-                          className={`w-full h-full object-cover object-top opacity-100 transition-transform duration-[30000ms] ease-out ${
-                            isActive ? 'scale-[1.07]' : 'scale-100'
-                          }`}
-                        />
-                        {/* Only bottom fade overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
-                      </div>
 
-                      {/* Slide Details Content */}
-                      <div className="relative z-10 p-6 sm:p-10 max-w-2xl space-y-4">
-                        {/* Media Type & Trending Pill */}
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 backdrop-blur-md">
-                            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> #{idx + 1} Trending This Week
-                          </span>
-                          <span className={`text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg backdrop-blur-md border ${
-                            getItemMediaType(slide) === 'movie' 
-                              ? 'bg-sky-500/20 border-sky-400/40 text-sky-300' 
-                              : 'bg-indigo-500/20 border-indigo-400/40 text-indigo-300'
-                          }`}>
-                            {getItemMediaType(slide) === 'movie' ? 'Movie' : 'TV Show'}
-                          </span>
-                        </div>
-
-                        {/* Title */}
-                        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-md">
-                          {slide.title || slide.name}
-                        </h1>
-
-                        {/* Sub-info Badges */}
-                        <div className="flex items-center flex-wrap gap-3 text-xs sm:text-sm font-semibold text-slate-300">
-                          <span className="flex items-center gap-1 text-amber-400 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
-                            <Star className="w-4 h-4 fill-amber-400" />
-                            {(slide.vote_average || 0).toFixed(1)} TMDB
-                          </span>
-                          <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
-                            {slide.release_date ? slide.release_date.split('-')[0] : (slide.first_air_date ? slide.first_air_date.split('-')[0] : 'N/A')}
-                          </span>
-                          <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg uppercase">
-                            {slide.original_language || 'EN'}
-                          </span>
-                        </div>
-
-                        {/* Overview */}
-                        <p className="text-xs sm:text-sm text-slate-300 line-clamp-3 leading-relaxed max-w-xl font-medium">
-                          {slide.overview || 'No synopsis available for this title.'}
-                        </p>
-
-                        {/* Hero Action Buttons */}
-                        <div className="flex items-center gap-3 pt-2">
-                          <button
-                            onClick={() => openAddDialog(slide)}
-                            className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 shadow-xl shadow-violet-600/30 cursor-pointer active:scale-95 transition-all"
-                          >
-                            <Plus className="w-4 h-4" /> Add to Library
-                          </button>
-
-                          <button
-                            onClick={() => navigate(`/explore/${getItemMediaType(slide)}/${slide.id}`)}
-                            className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-xs sm:text-sm font-bold px-5 py-3 rounded-xl flex items-center gap-2 backdrop-blur-md cursor-pointer transition-all"
-                          >
-                            <Info className="w-4 h-4 text-violet-400" /> Details & Seasons
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Manual Carousel Arrow Controls */}
-              <div className="absolute right-4 top-4 sm:top-auto sm:bottom-6 z-20 flex items-center gap-2">
-                <button
-                  onClick={() => setBannerIndex(prev => (prev === 0 ? featuredSlides.length - 1 : prev - 1))}
-                  className="w-10 h-10 rounded-2xl bg-slate-950/80 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer hover:border-slate-600 shadow-xl"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setBannerIndex(prev => (prev + 1) % featuredSlides.length)}
-                  className="w-10 h-10 rounded-2xl bg-slate-950/80 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer hover:border-slate-600 shadow-xl"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Bottom Dot Indicators */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
-                {featuredSlides.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setBannerIndex(idx)}
-                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                      idx === bannerIndex ? 'w-6 bg-violet-500' : 'w-1.5 bg-slate-700 hover:bg-slate-500'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* CATEGORY ROWS FEED */}
           {loadingFeed ? (
@@ -1765,6 +1757,7 @@ export default function ExploreTMDB({ watchedItems = [], onAddItem, onAddItems, 
 
         </div>
       )}
+      </div>
 
       {/* Floating Action Bar for Bulk Selection */}
       {isSelectMode && (

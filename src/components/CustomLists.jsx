@@ -59,9 +59,8 @@ const getStatusLabelAndStyle = (status, type) => {
   }
 }
 
-export default function CustomLists({ typeFilter, user, watchlistItems, onItemClick, onAddItem, onAddItems, onUpdateItem }) {
+export default function CustomLists({ typeFilter, user, watchlistItems, onItemClick, onAddItem, onAddItems, onUpdateItem, activeListId, setActiveListId }) {
   const [lists, setLists] = useState([])
-  const [activeListId, setActiveListId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newListName, setNewListName] = useState('')
@@ -996,7 +995,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         /* =================== DETAILED VIEW OF ACTIVE LIST =================== */
         <div className="space-y-6">
           {/* Header Banner */}
-          <div className="relative w-full h-48 md:h-64 rounded-2xl overflow-hidden shadow-2xl bg-slate-950">
+          <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 md:h-64 overflow-hidden shadow-2xl bg-slate-950 mb-8">
             {/* Banner Image */}
             {activeList.banner_url || activeList.thumbnail_url ? (
               <img 
@@ -1012,7 +1011,8 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
             
             {/* Content overlay */}
-            <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="absolute inset-0 flex items-end">
+              <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
               <div>
                 <button 
                   onClick={() => { setActiveListId(null); setError(''); }}
@@ -1087,6 +1087,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Constrained list content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Add item control bar */}
 
@@ -1247,9 +1251,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             )}
           </div>
         </div>
+      </div>
       ) : (
         /* =================== LIST DIRECTORY VIEW =================== */
-        <div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             
             {/* Create New List Box */}
