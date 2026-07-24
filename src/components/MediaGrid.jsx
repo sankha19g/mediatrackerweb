@@ -580,6 +580,41 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     return 'Planned'
   }
 
+  const getStatusOverlayStyle = (status) => {
+    switch (status) {
+      case 'completed':
+        return {
+          containerStyle: 'bg-emerald-950/90 border-emerald-500/30 text-emerald-300',
+          iconColor: 'text-emerald-400'
+        }
+      case 'watching':
+        return {
+          containerStyle: 'bg-violet-950/90 border-violet-500/30 text-violet-300',
+          iconColor: 'text-violet-400'
+        }
+      case 'pending':
+        return {
+          containerStyle: 'bg-rose-950/90 border-rose-500/30 text-rose-300',
+          iconColor: 'text-rose-455'
+        }
+      case 'planned':
+        return {
+          containerStyle: 'bg-sky-950/90 border-sky-500/30 text-sky-300',
+          iconColor: 'text-sky-400'
+        }
+      case 'backlog':
+        return {
+          containerStyle: 'bg-slate-900/90 border-slate-750 text-slate-350',
+          iconColor: 'text-slate-450'
+        }
+      default:
+        return {
+          containerStyle: 'bg-slate-900/90 border-slate-750 text-slate-350',
+          iconColor: 'text-slate-450'
+        }
+    }
+  }
+
   if (statusFilter === 'lists') {
     return (
       <div className={activeListId ? "pb-16" : "py-6 px-4"}>
@@ -869,10 +904,13 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                     </div>
                   )}
 
-                  {/* Status Tag on Top Left */}
-                  <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold border backdrop-blur-md ${getStatusBadgeColor(item.virtualStatus)}`}>
-                    {getStatusLabel(item.virtualStatus)}
-                  </div>
+                  {/* Status Overlay at the bottom */}
+                  {!isSelectMode && (
+                    <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1.5 px-2 flex items-center justify-center gap-1 ${getStatusOverlayStyle(item.virtualStatus).containerStyle}`}>
+                      <Check className={`w-3.5 h-3.5 ${getStatusOverlayStyle(item.virtualStatus).iconColor}`} />
+                      <span>{getStatusLabel(item.virtualStatus)}</span>
+                    </div>
+                  )}
 
                   {/* TV: total seasons badge top-right (non-select mode) */}
                   {isTV && !isSelectMode && totalSeas > 1 && (

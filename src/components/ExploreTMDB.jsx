@@ -196,29 +196,12 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
           return (
             <div
               key={cardKey}
-              className={`flex-shrink-0 w-36 sm:w-44 md:w-48 group/card relative bg-slate-900/40 border rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col snap-start ${
+              className={`flex-shrink-0 w-36 sm:w-44 md:w-48 lg:w-[calc((100%-96px)/7)] group/card relative bg-slate-900/40 border rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col snap-start ${
                 isSelectMode && isSelected
                   ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/10'
                   : 'border-slate-800/80 hover:border-slate-700/80 hover:-translate-y-1'
               }`}
             >
-              {/* Media Type & Rating Badges */}
-              <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
-                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md backdrop-blur-md shadow-md border ${
-                  isMovie 
-                    ? 'bg-sky-500/80 text-white border-sky-400/30' 
-                    : 'bg-indigo-500/80 text-white border-indigo-400/30'
-                }`}>
-                  {isMovie ? 'Movie' : 'TV'}
-                </span>
-              </div>
-
-              <div className="absolute top-2.5 right-2.5 z-10">
-                <span className="text-[10px] font-bold bg-slate-950/80 backdrop-blur-md text-amber-400 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1 shadow-md">
-                  <Star className="w-3 h-3 fill-amber-400" />
-                  {(item.vote_average || 0).toFixed(1)}
-                </span>
-              </div>
 
               {/* Poster Image */}
               <div
@@ -1286,27 +1269,7 @@ export default function ExploreTMDB({
             : ''
         }`}
       >
-        {/* Media Type & Rating Badges (Only for Movies and TV Shows) */}
-        {!isPerson && !isCompany && (
-          <>
-            <div className="absolute top-2.5 left-2.5 z-10">
-              <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md backdrop-blur-md border ${
-                isMovie ? 'bg-sky-500/80 text-white border-sky-400/30' : 'bg-indigo-500/80 text-white border-indigo-400/30'
-              }`}>
-                {isMovie ? 'Movie' : 'TV'}
-              </span>
-            </div>
 
-            <div className="absolute top-2.5 right-2.5 z-10">
-              {item.vote_average > 0 && (
-                <span className="text-[10px] font-bold bg-slate-950/80 backdrop-blur-md text-amber-400 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1 shadow-md">
-                  <Star className="w-3 h-3 fill-amber-400" />
-                  {item.vote_average.toFixed(1)}
-                </span>
-              )}
-            </div>
-          </>
-        )}
 
         {/* Image Area */}
         <div
