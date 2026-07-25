@@ -690,7 +690,17 @@ export default function App() {
                   typeFilter={currentTab}
                   onUpdateItem={handleUpdateItem}
                   onRemoveItem={handleRemoveItem}
-                  onItemClick={(item) => navigate(`/media/${item.id}`)}
+                  onItemClick={(item) => {
+                    if (item.id && item.id.toString().startsWith('tmdb_')) {
+                      if (item.watchlist_item_id) {
+                        navigate(`/media/${item.watchlist_item_id}`)
+                      } else {
+                        navigate(`/explore/${item.type}/${item.tmdb_id}`)
+                      }
+                    } else {
+                      navigate(`/media/${item.id}`)
+                    }
+                  }}
                   onAddItem={handleAddItem}
                   onAddItems={handleAddItems}
                   user={user}

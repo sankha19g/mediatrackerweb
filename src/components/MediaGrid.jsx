@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Star, Calendar, Trash2, Edit, MessageSquare, Tag, Eye, Filter, ArrowUpDown, Film, Tv, Gamepad, CheckSquare, Square, Check, X, ListChecks, Sparkles, RefreshCw, Globe, MapPin } from 'lucide-react'
+import { Star, Calendar, Trash2, Edit, MessageSquare, Tag, Eye, Filter, ArrowUpDown, Film, Tv, Gamepad, CheckSquare, Square, Check, X, ListChecks, Sparkles, RefreshCw, Globe, MapPin, Bookmark } from 'lucide-react'
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
 import CustomLists from './CustomLists'
 import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems } from '../lib/firebase'
@@ -101,8 +101,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     return localStorage.getItem('cinelog_status_filter') || 'all'
   })
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortBy, setSortBy] = useState('newest_added') // 'newest_added', 'release_year'
+  const [sortBy, setSortBy] = useState('newest_added') // 'newest_added', 'release_date'
   const [editingItem, setEditingItem] = useState(null)
+  const [listsSubTab, setListsSubTab] = useState('movie_tv') // 'movie_tv', 'actors'
   const [showFilterDropdown, setShowFilterDropdown] = useState(false)
   const [yearFilter, setYearFilter] = useState('all')
   const [languageFilter, setLanguageFilter] = useState('all')
@@ -119,6 +120,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     setHideIndian(false)
     setCurrentPage(1)
     setActiveListId(null)
+    setListsSubTab('movie_tv')
   }, [typeFilter])
 
   useEffect(() => {
@@ -382,8 +384,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     if (sortBy === 'newest_added') {
       return new Date(b._sortDate || b.watched_at || b.created_at) - new Date(a._sortDate || a.watched_at || a.created_at)
     }
-    if (sortBy === 'release_year') {
-      return parseInt(b.release_year || 0) - parseInt(a.release_year || 0)
+    if (sortBy === 'release_date') {
+      const dateA = a.release_date || a.release_year || '0000'
+      const dateB = b.release_date || b.release_year || '0000'
+      return dateB.localeCompare(dateA)
     }
     return 0
   })
@@ -557,6 +561,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   const getTypeLabel = () => {
     if (typeFilter === 'movie') return 'Movies'
     if (typeFilter === 'tv') return 'TV Shows'
+    if (typeFilter === 'lists') return 'Custom Lists'
     return 'Games'
   }
 
@@ -615,6 +620,61 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     }
   }
 
+  if (typeFilter === 'lists') {
+    return (
+      <div className={activeListId ? "pb-16" : "py-6 px-4"}>
+        {!activeListId && (
+          <>
+            {/* Grid Header & Statistics */}
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                  <Bookmark className="w-6 h-6 text-violet-400" />
+                  My Saved Lists
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Create and manage your saved lists of movies, TV shows, and actors.
+                </p>
+              </div>
+            </div>
+
+            {/* Saved List Sub-Tabs */}
+            <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
+              {[
+                { id: 'movie_tv', label: 'Movie/TV' },
+                { id: 'actors', label: 'Actors' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setListsSubTab(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                    listsSubTab === tab.id
+                      ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
+                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <CustomLists
+          typeFilter={listsSubTab === 'actors' ? 'actor' : 'lists'}
+          user={user}
+          watchlistItems={items}
+          onItemClick={onItemClick}
+          onAddItem={onAddItem}
+          onAddItems={onAddItems}
+          onUpdateItem={onUpdateItem}
+          activeListId={activeListId}
+          setActiveListId={setActiveListId}
+        />
+      </div>
+    )
+  }
+
   if (statusFilter === 'lists') {
     return (
       <div className={activeListId ? "pb-16" : "py-6 px-4"}>
@@ -627,10 +687,12 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   {typeFilter === 'movie' && <Film className="w-6 h-6 text-violet-400" />}
                   {typeFilter === 'tv' && <Tv className="w-6 h-6 text-violet-400" />}
                   {typeFilter === 'game' && <Gamepad className="w-6 h-6 text-violet-400" />}
-                  My Custom {getTypeLabel()} Lists
+                  {typeFilter === 'game' ? 'My Saved Games Lists' : `My Custom ${getTypeLabel()} Lists`}
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Create and manage your custom categories and collections of {getTypeLabel().toLowerCase()}.
+                  {typeFilter === 'game'
+                    ? 'Create and manage your saved game lists.'
+                    : `Create and manage your custom categories and collections of ${getTypeLabel().toLowerCase()}.`}
                 </p>
               </div>
             </div>
@@ -644,7 +706,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
                 { id: 'planned', label: 'Planned' },
                 typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
-                { id: 'lists', label: 'Custom Lists' }
+                typeFilter === 'game' && { id: 'lists', label: 'Saved Games List' }
               ].filter(Boolean).map((tab) => (
                 <button
                   key={tab.id}
@@ -719,7 +781,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                       className="bg-transparent border-none text-xs text-slate-300 focus:outline-none cursor-pointer w-full pr-1"
                     >
                       <option value="newest_added" className="bg-slate-950 text-slate-300">Newest Added</option>
-                      <option value="release_year" className="bg-slate-950 text-slate-300">Release Year</option>
+                      <option value="release_date" className="bg-slate-950 text-slate-300">Release Date</option>
                     </select>
                   </div>
                 </div>
@@ -823,7 +885,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
           { id: 'planned', label: 'Planned' },
           typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
-          { id: 'lists', label: 'Custom Lists' }
+          typeFilter === 'game' && { id: 'lists', label: 'Saved Games List' }
         ].filter(Boolean).map((tab) => (
           <button
             key={tab.id}

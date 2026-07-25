@@ -56,6 +56,7 @@ export default function GameExplore({ watchedItems, onAddItem, onRemoveItem }) {
       rating: userRating,
       review: userReview.trim(),
       release_year: addingItem.release_date.split('-')[0],
+      release_date: addingItem.release_date,
       status: userStatus,
       country: country
     }
@@ -76,6 +77,7 @@ export default function GameExplore({ watchedItems, onAddItem, onRemoveItem }) {
       rating: customRating,
       review: customReview.trim(),
       release_year: customYear.trim() || new Date().getFullYear().toString(),
+      release_date: customYear.trim() ? `${customYear.trim()}-01-01` : `${new Date().getFullYear().toString()}-01-01`,
       status: customStatus,
       country: 'Unknown'
     }

@@ -180,6 +180,7 @@ export const addFirebaseItem = async (userId, item) => {
     rating: Number(item.rating) || 0,
     review: item.review || '',
     release_year: item.release_year || '',
+    release_date: item.release_date || '',
     status: item.status || 'completed',
     country: item.country || '',
     original_language: item.original_language || '',
@@ -213,6 +214,7 @@ export const migrateLocalItemsToFirebase = async (userId, localItems) => {
       rating: Number(item.rating) || 0,
       review: item.review || '',
       release_year: item.release_year || '',
+      release_date: item.release_date || '',
       status: item.status || 'completed',
       country: item.country || '',
       original_language: item.original_language || '',
@@ -269,7 +271,7 @@ export const loadFirebaseLists = async (userId, type) => {
   return lists.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
-export const addFirebaseList = async (userId, name, description, type, thumbnailUrl = '', bannerUrl = '') => {
+export const addFirebaseList = async (userId, name, description, type, thumbnailUrl = '', bannerUrl = '', extraFields = {}) => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
   const listData = {
@@ -280,7 +282,8 @@ export const addFirebaseList = async (userId, name, description, type, thumbnail
     thumbnail_url: thumbnailUrl || '',
     banner_url: bannerUrl || '',
     item_ids: [],
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    ...extraFields
   }
   const docRef = await addDoc(collection(dbInstance, 'custom_lists'), listData)
   return { id: docRef.id, ...listData }
@@ -341,6 +344,7 @@ export const batchAddFirebaseItems = async (userId, itemsList) => {
         rating: Number(item.rating) || 0,
         review: item.review || '',
         release_year: item.release_year || '',
+        release_date: item.release_date || '',
         status: item.status || 'completed',
         country: item.country || '',
         original_language: item.original_language || '',

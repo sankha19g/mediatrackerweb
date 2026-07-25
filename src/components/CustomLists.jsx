@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal } from 'lucide-react'
 import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList, updateFirebaseList } from '../lib/firebase'
 import { getPosterUrl, fetchTMDB, searchGames } from '../lib/tmdb'
 
@@ -67,6 +67,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [newListDesc, setNewListDesc] = useState('')
   const [selectedItemId, setSelectedItemId] = useState('')
   const [error, setError] = useState('')
+  const [subTabFilter, setSubTabFilter] = useState('all') // 'all', 'movie', 'tv'
+  const [newListType, setNewListType] = useState('movie') // 'movie', 'tv'
+
+  const [actorCredits, setActorCredits] = useState([])
+  const [loadingCredits, setLoadingCredits] = useState(false)
   
   const [letterboxdUrl, setLetterboxdUrl] = useState('')
   const [newThumbnailUrl, setNewThumbnailUrl] = useState('')
@@ -80,6 +85,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [editThumbnailUrl, setEditThumbnailUrl] = useState('')
   const [editBannerUrl, setEditBannerUrl] = useState('')
   const [editLetterboxdUrl, setEditLetterboxdUrl] = useState('')
+  
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [editBannerPositionPc, setEditBannerPositionPc] = useState(50)
+  const [editBannerPositionMobile, setEditBannerPositionMobile] = useState(50)
   
   const [fadeWatched, setFadeWatched] = useState(false)
   const [showListFilterDropdown, setShowListFilterDropdown] = useState(false)
@@ -117,6 +126,58 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     })
   }, [lists, watchlistItems, onUpdateItem])
 
+  const activeList = lists.find(l => l.id === activeListId)
+
+  useEffect(() => {
+    if (!activeList || activeList.type !== 'actor' || !activeList.tmdb_person_id) {
+      setActorCredits([])
+      return
+    }
+
+    const fetchCredits = async () => {
+      setLoadingCredits(true)
+      try {
+        const creditsRes = await fetchTMDB(`/person/${activeList.tmdb_person_id}/combined_credits`)
+        const uniqueWorks = []
+        const seen = new Set()
+        const sortedCredits = (creditsRes.cast || []).concat(creditsRes.crew || [])
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+        
+        for (const item of sortedCredits) {
+          const key = `${item.media_type || (item.title ? 'movie' : 'tv')}_${item.id}`
+          if (!seen.has(key) && item.poster_path) {
+            seen.add(key)
+            
+            const releaseYear = (item.release_date || item.first_air_date || '').split('-')[0]
+            const type = item.media_type || (item.title ? 'movie' : 'tv')
+            
+            const existing = watchlistItems.find(w => w.type === type && w.tmdb_id === item.id.toString() && w.status !== 'list_only')
+            
+            uniqueWorks.push({
+              id: `tmdb_${type}_${item.id}`,
+              tmdb_id: item.id.toString(),
+              title: item.title || item.name,
+              type: type,
+              poster_path: item.poster_path,
+              release_year: releaseYear,
+              release_date: item.release_date || item.first_air_date || '',
+              vote_average: item.vote_average,
+              popularity: item.popularity,
+              status: existing ? existing.status : 'list_only',
+              watchlist_item_id: existing ? existing.id : null
+            })
+          }
+        }
+        setActorCredits(uniqueWorks)
+      } catch (err) {
+        console.error('Failed to fetch actor credits:', err)
+      } finally {
+        setLoadingCredits(false)
+      }
+    }
+    fetchCredits()
+  }, [activeListId, watchlistItems])
+
   // Load lists on mount/type change/user change
   useEffect(() => {
     fetchLists()
@@ -134,15 +195,27 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     setError('')
     try {
       if (isCloud) {
-        const cloudLists = await loadFirebaseLists(user.uid, typeFilter)
-        setLists(cloudLists)
+        if (typeFilter === 'lists') {
+          const [movieLists, tvLists] = await Promise.all([
+            loadFirebaseLists(user.uid, 'movie'),
+            loadFirebaseLists(user.uid, 'tv')
+          ])
+          setLists([...movieLists, ...tvLists])
+        } else {
+          const cloudLists = await loadFirebaseLists(user.uid, typeFilter)
+          setLists(cloudLists)
+        }
       } else {
         const localListsRaw = localStorage.getItem('local_custom_lists')
         if (localListsRaw) {
           const parsed = JSON.parse(localListsRaw)
-          // Filter by media type and user if any (for offline simplicity, just filter by type)
-          const filtered = parsed.filter(list => list.type === typeFilter)
-          setLists(filtered)
+          if (typeFilter === 'lists') {
+            const filtered = parsed.filter(list => list.type === 'movie' || list.type === 'tv')
+            setLists(filtered)
+          } else {
+            const filtered = parsed.filter(list => list.type === typeFilter)
+            setLists(filtered)
+          }
         } else {
           setLists([])
         }
@@ -164,10 +237,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     setError('')
     setImportStatus('Initializing...')
 
+    const actualListType = typeFilter === 'lists' ? newListType : typeFilter
+
     try {
       let importedItemIds = []
 
-      if (letterboxdUrl.trim() && typeFilter === 'movie') {
+      if (letterboxdUrl.trim() && actualListType === 'movie') {
         setImportStatus('Fetching Letterboxd list...')
         const cleanUrl = letterboxdUrl.trim()
         
@@ -322,7 +397,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           user.uid, 
           newListName.trim(), 
           newListDesc.trim(), 
-          typeFilter, 
+          actualListType, 
           newThumbnailUrl.trim(), 
           newBannerUrl.trim()
         )
@@ -338,7 +413,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           user_id: 'local',
           name: newListName.trim(),
           description: newListDesc.trim(),
-          type: typeFilter,
+          type: actualListType,
           thumbnail_url: newThumbnailUrl.trim(),
           banner_url: newBannerUrl.trim(),
           item_ids: importedItemIds,
@@ -401,6 +476,8 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     setEditThumbnailUrl(activeList.thumbnail_url || '')
     setEditBannerUrl(activeList.banner_url || '')
     setEditLetterboxdUrl('')
+    setEditBannerPositionPc(activeList.banner_position_pc ?? 50)
+    setEditBannerPositionMobile(activeList.banner_position_mobile ?? 50)
     setShowEditModal(true)
   }
 
@@ -571,7 +648,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         description: editListDesc.trim(),
         thumbnail_url: editThumbnailUrl.trim(),
         banner_url: editBannerUrl.trim(),
-        item_ids: finalItemIds
+        item_ids: finalItemIds,
+        banner_position_pc: editBannerPositionPc,
+        banner_position_mobile: editBannerPositionMobile
       }
 
       if (isCloud && !activeList.id.startsWith('local_list_')) {
@@ -610,6 +689,34 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
     const targetList = lists.find(l => l.id === activeListId)
     if (!targetList) return
+
+    if (targetList.type === 'actor') {
+      const tmdbIdToAdd = selectedItemId
+      const updatedRemovedIds = (targetList.removed_ids || []).filter(id => id !== tmdbIdToAdd)
+      try {
+        if (isCloud && !activeListId.startsWith('local_list_')) {
+          await updateFirebaseList(activeListId, { removed_ids: updatedRemovedIds })
+        } else {
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          if (localListsRaw) {
+            const parsed = JSON.parse(localListsRaw)
+            const updated = parsed.map(list => 
+              list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+            )
+            localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+          }
+        }
+        setLists(prev => prev.map(list => 
+          list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+        ))
+        setSelectedItemId('')
+        setError('')
+      } catch (err) {
+        console.error('Failed to add item back to actor list:', err)
+        setError('Could not add item back to list.')
+      }
+      return
+    }
 
     if (targetList.item_ids.includes(selectedItemId)) {
       setError('Item is already in this list!')
@@ -650,6 +757,35 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     const targetList = lists.find(l => l.id === activeListId)
     if (!targetList) return
 
+    if (targetList.type === 'actor') {
+      const creditItem = actorCredits.find(c => c.id === itemId)
+      const tmdbIdToRemove = creditItem ? creditItem.tmdb_id : itemId
+      const updatedRemovedIds = [...(targetList.removed_ids || []), tmdbIdToRemove]
+
+      try {
+        if (isCloud && !activeListId.startsWith('local_list_')) {
+          await updateFirebaseList(activeListId, { removed_ids: updatedRemovedIds })
+        } else {
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          if (localListsRaw) {
+            const parsed = JSON.parse(localListsRaw)
+            const updated = parsed.map(list => 
+              list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+            )
+            localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+          }
+        }
+        setLists(prev => prev.map(list => 
+          list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+        ))
+        setError('')
+      } catch (err) {
+        console.error('Failed to add tmdb_id to removed_ids:', err)
+        setError('Could not remove item from list.')
+      }
+      return
+    }
+
     const updatedIds = targetList.item_ids.filter(id => id !== itemId)
 
     try {
@@ -676,16 +812,19 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     }
   }
 
-  const activeList = lists.find(l => l.id === activeListId)
-
   // Map item IDs to actual watchlist items
-  const getListItems = (itemIds) => {
-    return itemIds
+  const getListItems = () => {
+    if (!activeList) return []
+    if (activeList.type === 'actor') {
+      const removed = activeList.removed_ids || []
+      return actorCredits.filter(item => !removed.includes(item.tmdb_id))
+    }
+    return activeList.item_ids
       .map(id => watchlistItems.find(w => w.id === id))
       .filter(Boolean) // Filter out items that might have been deleted from main log
   }
 
-  const rawListItems = activeList ? getListItems(activeList.item_ids) : []
+  const rawListItems = getListItems()
 
   // Image Picker handlers
   const handleOpenImagePicker = async (target) => {
@@ -751,6 +890,40 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
     const targetList = lists.find(l => l.id === activeListId)
     if (!targetList) return
+
+    if (targetList.type === 'actor') {
+      const tmdbIdsToRemove = itemIdsToRemove.map(id => {
+        const credit = actorCredits.find(c => c.id === id)
+        return credit ? credit.tmdb_id : id
+      })
+      const updatedRemovedIds = Array.from(new Set([...(targetList.removed_ids || []), ...tmdbIdsToRemove]))
+
+      try {
+        if (isCloud && !activeListId.startsWith('local_list_')) {
+          await updateFirebaseList(activeListId, { removed_ids: updatedRemovedIds })
+        } else {
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          if (localListsRaw) {
+            const parsed = JSON.parse(localListsRaw)
+            const updated = parsed.map(list => 
+              list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+            )
+            localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+          }
+        }
+
+        setLists(prev => prev.map(list => 
+          list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+        ))
+        setError('')
+        setIsDeleteMode(false)
+        setSelectedDeleteIds([])
+      } catch (err) {
+        console.error('Failed to remove items from actor list:', err)
+        setError('Could not remove items from list.')
+      }
+      return
+    }
 
     const updatedIds = targetList.item_ids.filter(id => !itemIdsToRemove.includes(id))
 
@@ -833,6 +1006,42 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
     const targetList = lists.find(l => l.id === activeListId)
     if (!targetList) return
+
+    if (targetList.type === 'actor') {
+      setImporting(true)
+      setImportStatus('Adding items back...')
+      const tmdbIdsToAdd = selectedItemsArray.map(item => item.tmdb_id || item.id.toString())
+      const updatedRemovedIds = (targetList.removed_ids || []).filter(id => !tmdbIdsToAdd.includes(id))
+      try {
+        if (isCloud && !activeListId.startsWith('local_list_')) {
+          await updateFirebaseList(activeListId, { removed_ids: updatedRemovedIds })
+        } else {
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          if (localListsRaw) {
+            const parsed = JSON.parse(localListsRaw)
+            const updated = parsed.map(list => 
+              list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+            )
+            localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+          }
+        }
+        setLists(prev => prev.map(list => 
+          list.id === activeListId ? { ...list, removed_ids: updatedRemovedIds } : list
+        ))
+        setSelectedPopupItems({})
+        setShowAddPopup(false)
+        setPopupSearchQuery('')
+        setPopupSearchResults([])
+        setError('')
+      } catch (err) {
+        console.error('Failed to add items back to actor list:', err)
+        setError('Could not add items back to list.')
+      } finally {
+        setImporting(false)
+        setImportStatus('')
+      }
+      return
+    }
 
     setImporting(true)
     setImportStatus('Adding selected items...')
@@ -935,8 +1144,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
   // Sort items in active list
   const sortedListItems = [...filteredListItems].sort((a, b) => {
-    if (listSortBy === 'release_year') {
-      return parseInt(b.release_year || 0) - parseInt(a.release_year || 0)
+    if (listSortBy === 'release_date') {
+      const dateA = a.release_date || a.release_year || '0000'
+      const dateB = b.release_date || b.release_year || '0000'
+      return dateB.localeCompare(dateA)
     }
     if (listSortBy === 'vote_average') {
       return (b.vote_average || 0) - (a.vote_average || 0)
@@ -948,6 +1159,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       return a.title.localeCompare(b.title)
     }
     if (listSortBy === 'newest_added') {
+      if (activeList && activeList.type === 'actor') {
+        return (b.popularity || 0) - (a.popularity || 0)
+      }
       const idxA = activeList.item_ids.indexOf(a.id)
       const idxB = activeList.item_ids.indexOf(b.id)
       return idxB - idxA
@@ -956,19 +1170,33 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   })
 
   // Find candidate items that are of the correct type and NOT in the active list already
-  const candidateItems = watchlistItems
-    .filter(item => item.type === typeFilter)
-    .filter(item => activeList ? !activeList.item_ids.includes(item.id) : true)
+  const candidateItems = useMemo(() => {
+    if (!activeList) return []
+    if (activeList.type === 'actor') {
+      const removed = activeList.removed_ids || []
+      return actorCredits.filter(item => removed.includes(item.tmdb_id))
+    }
+    return watchlistItems
+      .filter(item => {
+        if (typeFilter === 'lists') {
+          return item.type === activeList.type;
+        }
+        return item.type === typeFilter;
+      })
+      .filter(item => !activeList.item_ids.includes(item.id))
+  }, [watchlistItems, activeList, actorCredits, typeFilter])
 
   const getTypeLabel = () => {
     if (typeFilter === 'movie') return 'Movie'
     if (typeFilter === 'tv') return 'TV Show'
+    if (typeFilter === 'lists') return 'Media'
     return 'Game'
   }
 
   const getTypeLabelPlural = () => {
     if (typeFilter === 'movie') return 'Movies'
     if (typeFilter === 'tv') return 'TV Shows'
+    if (typeFilter === 'lists') return 'Media Items'
     return 'Games'
   }
 
@@ -993,44 +1221,52 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
       {activeList ? (
         /* =================== DETAILED VIEW OF ACTIVE LIST =================== */
-        <div className="space-y-6">
-          <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 md:h-64 overflow-hidden shadow-2xl bg-black mb-8">
+        <div className="space-y-6 relative min-h-[500px]">
+          {/* Cinematic Background Banner Backdrop */}
+          <div className="w-screen absolute left-1/2 -translate-x-1/2 top-0 h-[480px] md:h-[580px] overflow-hidden bg-black z-0 pointer-events-none">
             {/* Banner Image */}
             {activeList.banner_url || activeList.thumbnail_url ? (
-              <img 
-                src={activeList.banner_url || activeList.thumbnail_url} 
-                alt="" 
-                className="w-full h-full object-cover opacity-95" 
-              />
+              <>
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @media (max-width: 768px) {
+                    .banner-img-${activeList.id} {
+                      object-position: center ${activeList.banner_position_mobile ?? 50}% !important;
+                    }
+                  }
+                  @media (min-width: 769px) {
+                    .banner-img-${activeList.id} {
+                      object-position: center ${activeList.banner_position_pc ?? 50}% !important;
+                    }
+                  }
+                ` }} />
+                <img 
+                  src={activeList.banner_url || activeList.thumbnail_url} 
+                  alt="" 
+                  className={`w-full h-full object-cover opacity-100 banner-img-${activeList.id}`}
+                />
+              </>
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-black to-indigo-950/20 opacity-85" />
             )}
             
-            {/* Bottom Fade Mask (Faded in below) */}
-            <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black via-black/70 to-transparent" />
-            
-            {/* Content overlay */}
-            <div className="absolute inset-0 flex items-end">
-              <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 z-10">
-              <div>
-                <button 
-                  onClick={() => { setActiveListId(null); setError(''); }}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-400 hover:text-violet-300 transition-colors mb-2.5 w-max cursor-pointer"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Back to Custom Lists
-                </button>
-                <h2 className="text-xl md:text-3xl font-black text-white drop-shadow-md flex items-center gap-2">
-                  {activeList.name}
-                </h2>
-                {activeList.description && (
-                  <p className="text-xs text-slate-350 mt-1 max-w-2xl drop-shadow-sm italic font-medium">
-                    {activeList.description}
-                  </p>
-                )}
-              </div>
+            {/* Lighter bottom fade overlay so the grid foreground elements are easily readable */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/30 to-[#0b0f19]" />
+          </div>
 
-              <div className="flex items-center gap-2 self-start md:self-end">
+          {/* Main Layout content */}
+          <div className="relative z-10 space-y-6 pt-4">
+            
+            {/* Back & Actions Header Bar */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+              <button 
+                onClick={() => { setActiveListId(null); setError(''); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-lg backdrop-blur-md"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              <div className="flex items-center gap-2">
                 {isDeleteMode ? (
                   <>
                     <button
@@ -1085,11 +1321,34 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 )}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Constrained list content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Profile / Details Block */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+              <div className="flex items-center gap-5">
+                {activeList.type === 'actor' && activeList.thumbnail_url && (
+                  <div className="w-32 sm:w-40 aspect-[2/3] rounded-xl overflow-hidden border border-slate-800 shadow-2xl flex-shrink-0">
+                    <img 
+                      src={activeList.thumbnail_url} 
+                      alt={activeList.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-xl md:text-3xl font-black text-white drop-shadow-md flex items-center gap-2">
+                    {activeList.name}
+                  </h2>
+                  {activeList.description && (
+                    <p className="text-xs text-slate-350 mt-1.5 max-w-2xl drop-shadow-sm italic font-medium">
+                      {activeList.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Constrained list content */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Add item control bar */}
 
@@ -1150,7 +1409,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                           className="bg-transparent border-none text-xs text-slate-300 focus:outline-none cursor-pointer w-full pr-1"
                         >
                           <option value="newest_added" className="bg-slate-950 text-slate-300">Newest Added</option>
-                          <option value="release_year" className="bg-slate-950 text-slate-300">Release Year</option>
+                          <option value="release_date" className="bg-slate-950 text-slate-300">Release Date</option>
                           <option value="vote_average" className="bg-slate-950 text-slate-300">IMDb Rating</option>
                           <option value="popularity" className="bg-slate-950 text-slate-300">Popularity</option>
                           <option value="title" className="bg-slate-950 text-slate-300">Title (A-Z)</option>
@@ -1164,7 +1423,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           </div>
 
           <div>
-            {rawListItems.length > 0 ? (
+            {activeList && activeList.type === 'actor' && loadingCredits ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <span className="w-8 h-8 border-2 border-violet-500/20 border-t-violet-500 rounded-full animate-spin mb-3" />
+                <p className="text-xs">Fetching actor credits from TMDB...</p>
+              </div>
+            ) : rawListItems.length > 0 ? (
               sortedListItems.length > 0 ? (
                 <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6">
                   {sortedListItems.map(item => {
@@ -1195,8 +1459,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       >
                         <div 
                           className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                          onClick={() => {
+                          onClick={(e) => {
                             if (isDeleteMode) {
+                              e.stopPropagation()
                               setSelectedDeleteIds(prev => 
                                 prev.includes(item.id) 
                                   ? prev.filter(id => id !== item.id) 
@@ -1251,34 +1516,45 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           </div>
         </div>
       </div>
+    </div>
       ) : (
         /* =================== LIST DIRECTORY VIEW =================== */
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className={`grid gap-4 sm:gap-6 ${
+            typeFilter === 'actor' 
+              ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6' 
+              : 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+          }`}>
             
             {/* Create New List Box */}
-            <div 
-              onClick={() => setShowCreateModal(true)}
-              className="group border-2 border-dashed border-slate-800 hover:border-violet-600/40 bg-slate-900/10 hover:bg-violet-950/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 aspect-[19/9]"
-            >
-              <Plus className="w-6 h-6 text-slate-500 group-hover:text-violet-400 mb-1 transition-colors" />
-              <span className="font-bold text-xs text-slate-400 group-hover:text-white transition-colors">
-                Create Custom List
-              </span>
-            </div>
+            {typeFilter !== 'actor' && (
+              <div 
+                onClick={() => {
+                  setShowCreateModal(true);
+                  if (typeFilter === 'lists') {
+                    setNewListType('movie');
+                  }
+                }}
+                className="group border-2 border-dashed border-slate-800 hover:border-violet-600/40 bg-slate-900/10 hover:bg-violet-950/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 aspect-[19/9]"
+              >
+                <Plus className="w-6 h-6 text-slate-500 group-hover:text-violet-400 mb-1 transition-colors" />
+                <span className="font-bold text-xs text-slate-400 group-hover:text-white transition-colors">
+                  {typeFilter === 'game' ? 'Create Saved Games List' : 'Create Saved List'}
+                </span>
+              </div>
+            )}
 
             {/* Custom Lists Cards */}
             {lists.map(list => {
-              const mappedItems = getListItems(list.item_ids)
-              const fakeLikes = Math.round((list.name.length * 3) % 45) + 5
+              const isActorType = list.type === 'actor'
               return (
                 <div 
                   key={list.id}
                   onClick={() => setActiveListId(list.id)}
                   className="group flex flex-col cursor-pointer transition-all duration-300"
                 >
-                  {/* Landscape Image */}
-                  <div className="aspect-[19/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md relative">
+                  {/* Portrait or Landscape cover photo */}
+                  <div className={`w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md relative ${isActorType ? 'aspect-[2/3]' : 'aspect-[19/9]'}`}>
                     {list.thumbnail_url || list.banner_url ? (
                       <img 
                         src={list.thumbnail_url || list.banner_url} 
@@ -1296,6 +1572,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   <h3 className="font-bold text-[14px] text-slate-200 line-clamp-1 mt-2.5 group-hover:text-white transition-colors">
                     {list.name}
                   </h3>
+                  {isActorType && list.description && (
+                    <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-bold uppercase tracking-wider">
+                      {list.description}
+                    </p>
+                  )}
                 </div>
               )
             })}
@@ -1306,8 +1587,14 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           {lists.length === 0 && (
             <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl max-w-sm mx-auto mt-6">
               <FolderPlus className="w-12 h-12 text-slate-700 mx-auto mb-3" />
-              <h3 className="font-bold text-slate-400 mb-1">No custom lists created</h3>
-              <p className="text-xs text-slate-500">Create your first custom category using the card above.</p>
+              <h3 className="font-bold text-slate-400 mb-1">
+                {typeFilter === 'game' ? 'No saved game lists created' : 'No saved lists created'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {typeFilter === 'game' 
+                  ? 'Create your first saved games list using the card above.'
+                  : 'Create your first saved list using the card above.'}
+              </p>
             </div>
           )}
         </div>
@@ -1318,10 +1605,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <form onSubmit={handleCreateList} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
             <h3 className="text-xl font-bold text-white mb-1">
-              Create Custom List
+              {typeFilter === 'game' ? 'Create Saved Games List' : 'Create Saved List'}
             </h3>
             <p className="text-xs text-slate-400 mb-6">
-              Organize your tracked {getTypeLabelPlural().toLowerCase()} into a custom category or collection.
+              {typeFilter === 'game'
+                ? 'Organize your tracked games into a saved list.'
+                : `Organize your tracked ${getTypeLabelPlural().toLowerCase()} into a saved list or collection.`}
             </p>
 
             <div className="space-y-4">
@@ -1337,6 +1626,23 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   {error && (
                     <div className="text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl">
                       {error}
+                    </div>
+                  )}
+
+                  {typeFilter === 'lists' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                        List Type
+                      </label>
+                      <select
+                        disabled={importing}
+                        value={newListType}
+                        onChange={(e) => setNewListType(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-violet-500 cursor-pointer"
+                      >
+                        <option value="movie" className="bg-slate-950 text-slate-350">Movies</option>
+                        <option value="tv" className="bg-slate-950 text-slate-350">TV Shows / Series</option>
+                      </select>
                     </div>
                   )}
 
@@ -1540,6 +1846,18 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       placeholder="e.g. https://example.com/banner.jpg"
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
                     />
+                    {editBannerUrl.trim() && (
+                      <div className="mt-1.5 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowCropModal(true)}
+                          className="text-[10px] font-extrabold text-violet-400 hover:text-violet-300 uppercase tracking-wider transition-colors inline-flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/25 px-2.5 py-1 rounded-lg"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          Crop / Align Banner
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {typeFilter === 'movie' && (
@@ -1597,6 +1915,100 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Banner Crop / Alignment Modal */}
+      {showCropModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-[70] animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-2xl w-full flex flex-col shadow-2xl relative animate-scale-up">
+            <button
+              type="button"
+              onClick={() => setShowCropModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-xl font-bold text-white mb-1">
+              Position & Align Banner
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Drag the sliders below to adjust which vertical section of your banner is visible on PC and Mobile screens.
+            </p>
+
+            <div className="space-y-6 overflow-y-auto pr-1 scrollbar-thin max-h-[60vh] pb-2">
+              {/* PC Crop Preview */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    PC / Desktop Preview (Widescreen)
+                  </span>
+                  <span className="text-[11px] font-bold text-violet-400">
+                    {editBannerPositionPc}% Offset
+                  </span>
+                </div>
+                <div className="w-full h-32 md:h-40 rounded-xl overflow-hidden bg-black border border-slate-800 relative">
+                  <img
+                    src={editBannerUrl}
+                    alt=""
+                    style={{ objectPosition: `center ${editBannerPositionPc}%` }}
+                    className="w-full h-full object-cover opacity-95 transition-all"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/80 to-transparent" />
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={editBannerPositionPc}
+                  onChange={(e) => setEditBannerPositionPc(parseInt(e.target.value))}
+                  className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                />
+              </div>
+
+              {/* Mobile Crop Preview */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Mobile / Phone Preview (Vertical)
+                  </span>
+                  <span className="text-[11px] font-bold text-violet-400">
+                    {editBannerPositionMobile}% Offset
+                  </span>
+                </div>
+                <div className="flex justify-center">
+                  <div className="w-48 h-40 rounded-xl overflow-hidden bg-black border border-slate-800 relative">
+                    <img
+                      src={editBannerUrl}
+                      alt=""
+                      style={{ objectPosition: `center ${editBannerPositionMobile}%` }}
+                      className="w-full h-full object-cover opacity-95 transition-all"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/80 to-transparent" />
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={editBannerPositionMobile}
+                  onChange={(e) => setEditBannerPositionMobile(parseInt(e.target.value))}
+                  className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 border-t border-slate-800/60 pt-4 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCropModal(false)}
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-violet-600/20"
+              >
+                <Check className="w-4 h-4" /> Save Position
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1728,19 +2140,23 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               Add Items to {activeList.name}
             </h3>
             <p className="text-xs text-slate-400 mb-6">
-              Search TMDB to find and select multiple {getTypeLabelPlural().toLowerCase()} to add to this list.
+              {activeList.type === 'actor'
+                ? "Select previously removed movies or TV shows to add them back to the actor's list."
+                : `Search TMDB to find and select multiple ${getTypeLabelPlural().toLowerCase()} to add to this list.`}
             </p>
 
             {/* Search Input Area */}
-            <div className="mb-6">
-              <input
-                type="text"
-                value={popupSearchQuery}
-                onChange={(e) => handlePopupSearch(e.target.value)}
-                placeholder={`Search for ${getTypeLabelPlural().toLowerCase()}...`}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-550 transition-colors"
-              />
-            </div>
+            {activeList.type !== 'actor' && (
+              <div className="mb-6">
+                <input
+                  type="text"
+                  value={popupSearchQuery}
+                  onChange={(e) => handlePopupSearch(e.target.value)}
+                  placeholder={`Search for ${getTypeLabelPlural().toLowerCase()}...`}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-550 transition-colors"
+                />
+              </div>
+            )}
 
             {/* Results Grid */}
             <div className="flex-grow overflow-y-auto pr-1 scrollbar-thin pb-4">
@@ -1751,32 +2167,43 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                     Searching TMDB...
                   </span>
                 </div>
-              ) : popupSearchResults.length === 0 ? (
+              ) : (activeList.type === 'actor'
+                  ? actorCredits.filter(item => (activeList.removed_ids || []).includes(item.tmdb_id))
+                  : popupSearchResults).length === 0 ? (
                 <div className="h-48 flex flex-col items-center justify-center text-slate-500 text-center">
                   <FolderOpen className="w-10 h-10 text-slate-700 mb-2" />
-                  <p className="text-sm font-semibold">No results found</p>
-                  <p className="text-xs mt-1">Try searching for a different title.</p>
+                  <p className="text-sm font-semibold">
+                    {activeList.type === 'actor' ? 'No items to restore' : 'No results found'}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {activeList.type === 'actor'
+                      ? "All filmography entries are currently active in this list."
+                      : "Try searching for a different title."}
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {popupSearchResults.map((item) => {
-                    const isAlreadyInList = activeList && rawListItems.some(li => li.tmdb_id === item.id.toString())
-                    const isSelected = !!selectedPopupItems[item.id]
+                  {(activeList.type === 'actor'
+                    ? actorCredits.filter(item => (activeList.removed_ids || []).includes(item.tmdb_id))
+                    : popupSearchResults).map((item) => {
+                    const itemKey = item.tmdb_id?.toString() || item.id.toString()
+                    const isAlreadyInList = activeList && rawListItems.some(li => li.tmdb_id === itemKey)
+                    const isSelected = !!selectedPopupItems[itemKey]
                     const cardImage = getPosterUrl(item.poster_path || item.cover_path)
                     const releaseDate = item.release_date || item.first_air_date || ''
                     const releaseYear = releaseDate ? releaseDate.split('-')[0] : (item.release_year || 'N/A')
 
                     return (
                       <div
-                        key={item.id}
+                        key={itemKey}
                         onClick={() => {
                           if (isAlreadyInList) return
                           setSelectedPopupItems(prev => {
                             const next = { ...prev }
                             if (isSelected) {
-                              delete next[item.id]
+                              delete next[itemKey]
                             } else {
-                              next[item.id] = item
+                              next[itemKey] = item
                             }
                             return next
                           })

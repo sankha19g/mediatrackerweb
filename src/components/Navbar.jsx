@@ -1,5 +1,5 @@
 import React from 'react'
-import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad, Search, X, ListChecks } from 'lucide-react'
+import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad, Search, X, ListChecks, Bookmark } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -63,7 +63,8 @@ export default function Navbar({
             {[
               { id: 'movie', label: 'Movies', icon: Film },
               { id: 'tv', label: 'TV Shows', icon: Tv },
-              { id: 'game', label: 'Games', icon: Gamepad }
+              { id: 'game', label: 'Games', icon: Gamepad },
+              { id: 'lists', label: 'Saved Lists', icon: Bookmark }
             ].map((tab) => {
               const Icon = tab.icon
               const isActive = currentTab === tab.id
@@ -88,7 +89,7 @@ export default function Navbar({
         {/* Mobile active state indicator (if on mobile, show current category title) */}
         {activeView === 'watchlist' && (
           <div className="md:hidden font-semibold text-sm text-violet-400 border border-violet-950/40 bg-violet-950/15 px-3 py-1 rounded-full">
-            {currentTab === 'movie' ? 'Movies' : currentTab === 'tv' ? 'TV Shows' : 'Games'}
+            {currentTab === 'movie' ? 'Movies' : currentTab === 'tv' ? 'TV Shows' : currentTab === 'game' ? 'Games' : 'Saved Lists'}
           </div>
         )}
 
@@ -142,13 +143,7 @@ export default function Navbar({
         <div className="flex items-center gap-3">
           {/* Auth Button */}
           {isAuthEnabled ? (
-            user ? (
-              <div className="flex items-center gap-3">
-                <span className="hidden lg:inline text-xs text-slate-400 max-w-[120px] truncate">
-                  {user.email}
-                </span>
-              </div>
-            ) : (
+            user ? null : (
               <button
                 onClick={onNavigateToAuth}
                 className="inline-flex items-center gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md cursor-pointer"
@@ -171,7 +166,8 @@ export default function Navbar({
           {[
             { id: 'movie', label: 'Movies', icon: Film },
             { id: 'tv', label: 'TV Shows', icon: Tv },
-            { id: 'game', label: 'Games', icon: Gamepad }
+            { id: 'game', label: 'Games', icon: Gamepad },
+            { id: 'lists', label: 'Saved Lists', icon: Bookmark }
           ].map((tab) => {
             const Icon = tab.icon
             const isActive = currentTab === tab.id

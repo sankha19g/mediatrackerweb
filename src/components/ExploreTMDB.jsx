@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Search, Film, Tv, Plus, Check, Star, Calendar, Loader, ListChecks, CheckSquare, Square, X, ChevronLeft, ChevronRight, Flame, Sparkles, Trophy, TrendingUp, Info, Play, ArrowLeft, User, Building2, SlidersHorizontal } from 'lucide-react'
+import { Search, Film, Tv, Plus, Check, Star, Calendar, Loader, ListChecks, CheckSquare, Square, X, ChevronLeft, ChevronRight, Flame, Sparkles, Trophy, TrendingUp, Info, Play, ArrowLeft, User, Building2, SlidersHorizontal, Heart } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { fetchTMDB, getPosterUrl, isTMDBConfigured } from '../lib/tmdb'
-import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems } from '../lib/firebase'
+import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems, addFirebaseList, deleteFirebaseList } from '../lib/firebase'
 
 const COUNTRY_MAP = {
   'US': 'United States',
@@ -256,7 +256,7 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
 }
 
 // Sub-component for Person (Actor/Director) and Company (Studio) Details
-const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navigate }) => {
+const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navigate, user }) => {
   const [data, setData] = useState(null)
   const [works, setWorks] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
@@ -269,6 +269,103 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
   const [sortBy, setSortBy] = useState('release_date')
   const [mediaFilter, setMediaFilter] = useState('all')
   const [showDropdown, setShowDropdown] = useState(false)
+
+  const [actorLists, setActorLists] = useState([])
+  const [toastMessage, setToastMessage] = useState('')
+  const isCloud = isFirebaseConfigured() && user
+
+  const fetchActorLists = async () => {
+    try {
+      if (isCloud && user) {
+        const cloudLists = await loadFirebaseLists(user.uid, 'actor')
+        setActorLists(cloudLists)
+      } else {
+        const localListsRaw = localStorage.getItem('local_custom_lists')
+        if (localListsRaw) {
+          const parsed = JSON.parse(localListsRaw)
+          setActorLists(parsed.filter(list => list.type === 'actor'))
+        } else {
+          setActorLists([])
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load actor lists:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchActorLists()
+  }, [user, detail])
+
+  const isFavourite = useMemo(() => {
+    if (detail.type !== 'person' || !data) return false
+    return actorLists.some(list => list.name === data.name && list.type === 'actor')
+  }, [actorLists, detail, data])
+
+  const handleToggleFavourite = async () => {
+    if (detail.type !== 'person' || !data) return
+    
+    const existingList = actorLists.find(list => list.name === data.name && list.type === 'actor')
+    
+    try {
+      if (existingList) {
+        if (isCloud && !existingList.id.startsWith('local_list_')) {
+          await deleteFirebaseList(existingList.id)
+        } else {
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          if (localListsRaw) {
+            const parsed = JSON.parse(localListsRaw)
+            const filtered = parsed.filter(list => list.id !== existingList.id)
+            localStorage.setItem('local_custom_lists', JSON.stringify(filtered))
+          }
+        }
+        setActorLists(prev => prev.filter(l => l.id !== existingList.id))
+        setToastMessage(`${data.name} removed from favourites`)
+        setTimeout(() => setToastMessage(''), 3000)
+      } else {
+        const bannerUrl = profileImages.length > 0 ? `https://image.tmdb.org/t/p/w1280${profileImages[0]}` : getPosterUrl(data.profile_path)
+        const thumbnailUrl = getPosterUrl(data.profile_path)
+        
+        if (isCloud) {
+          const newList = await addFirebaseList(
+            user.uid,
+            data.name,
+            data.known_for_department || 'Artist',
+            'actor',
+            thumbnailUrl,
+            bannerUrl,
+            { tmdb_person_id: data.id.toString(), removed_ids: [] }
+          )
+          setActorLists(prev => [newList, ...prev])
+        } else {
+          const localId = `local_list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          const newList = {
+            id: localId,
+            user_id: 'local',
+            name: data.name,
+            description: data.known_for_department || 'Artist',
+            type: 'actor',
+            thumbnail_url: thumbnailUrl,
+            banner_url: bannerUrl,
+            item_ids: [],
+            created_at: new Date().toISOString(),
+            tmdb_person_id: data.id.toString(),
+            removed_ids: []
+          }
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          const currentLocalLists = localListsRaw ? JSON.parse(localListsRaw) : []
+          const updatedLocalLists = [newList, ...currentLocalLists]
+          localStorage.setItem('local_custom_lists', JSON.stringify(updatedLocalLists))
+          setActorLists(prev => [newList, ...prev])
+        }
+        setToastMessage(`${data.name} saved as favourite`)
+        setTimeout(() => setToastMessage(''), 3000)
+      }
+    } catch (err) {
+      console.error('Failed to toggle favourite actor:', err)
+      alert('Failed to update favourite status.')
+    }
+  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -451,27 +548,14 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
   return (
     <div className="animate-fade-in">
       {/* Backdrop collage / blur banner */}
-      <div className="w-screen relative left-1/2 -translate-x-1/2 h-48 sm:h-64 overflow-hidden z-0 bg-black mb-8">
-        {/* Overlaid back button & title */}
-        <div className="absolute inset-x-0 top-0 z-20 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 flex items-center justify-between">
-          <button 
-            onClick={onBack}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {isFromState ? 'Back' : 'Back to Explore'}
-          </button>
-          <span className="text-xs font-bold text-slate-400 bg-black/85 backdrop-blur-md px-3 py-1 rounded-full border border-slate-800 uppercase tracking-wider">
-            {isPerson ? 'Artist Profile' : 'Production Studio'}
-          </span>
-        </div>
+      <div className="w-screen relative left-1/2 -translate-x-1/2 overflow-hidden border-0 bg-black shadow-2xl mb-8">
         {isPerson && profileImages.length > 0 ? (
-          <div className="absolute inset-0 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 opacity-35 filter blur-[0.5px]">
+          <div className="absolute inset-0 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 opacity-65 filter blur-[0.5px] pointer-events-none">
             {profileImages.slice(0, 5).map((path, idx) => (
               <div key={idx} className="relative aspect-[2/3] w-full h-full overflow-hidden">
                 <img
                   src={`https://image.tmdb.org/t/p/w300${path}`}
-                  alt="Backdrop collage image"
+                  alt=""
                   className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700"
                   loading="lazy"
                 />
@@ -480,118 +564,135 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
           </div>
         ) : (
           /* Stylish blur background */
-          <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {isPerson && data?.profile_path ? (
               <img
                 src={getPosterUrl(data.profile_path)}
-                alt="Blurred profile"
-                className="w-full h-full object-cover scale-125 opacity-20 filter blur-2xl"
+                alt=""
+                className="w-full h-full object-cover scale-125 opacity-35 filter blur-2xl"
               />
             ) : (
               /* Gradient mesh for studio or fallback */
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-900/30 via-indigo-900/20 to-black opacity-40 filter blur-xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-900/40 via-indigo-900/30 to-black opacity-55 filter blur-xl" />
             )}
           </div>
         )}
         {/* Gradients to fade collage into the dark page background */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent z-10" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black z-10" />
-      </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/30 to-transparent z-10 pointer-events-none" />
 
-      {/* Centered Profile Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-16">
-        {/* Profile/Detail Banner Header */}
-        <div className="relative z-10 bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row gap-6 sm:gap-8 items-start shadow-2xl -mt-20 sm:-mt-28">
-        {/* Poster / Logo */}
-        <div className={`w-32 sm:w-40 aspect-[2/3] rounded-2xl overflow-hidden border shadow-2xl flex-shrink-0 flex items-center justify-center ${!isPerson ? 'bg-white border-slate-200 p-4' : 'bg-slate-950 border-slate-800'}`}>
-          {isPerson ? (
-            <img 
-              src={getPosterUrl(data.profile_path)} 
-              alt={data.name} 
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            data.logo_path ? (
-              <img 
-                src={`https://image.tmdb.org/t/p/w300${data.logo_path}`} 
-                alt={data.name} 
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="text-slate-950 font-extrabold text-xl text-center leading-tight">{data.name}</div>
-            )
-          )}
-        </div>
-
-        {/* Text Details */}
-        <div className="flex-1 min-w-0 space-y-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
-              {data.name}
-            </h1>
-            {isPerson && data.known_for_department && (
-              <p className="text-xs sm:text-sm font-extrabold text-violet-400 uppercase tracking-wider mt-1">
-                {data.known_for_department}
-              </p>
-            )}
+        {/* Centered Profile Content */}
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-8 relative z-10">
+          {/* Overlaid back button & title */}
+          <div className="flex items-center justify-between mb-6">
+            <button 
+              onClick={onBack}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              {isFromState ? 'Back' : 'Back to Explore'}
+            </button>
+            <span className="text-xs font-bold text-slate-400 bg-black/85 backdrop-blur-md px-3 py-1 rounded-full border border-slate-800 uppercase tracking-wider">
+              {isPerson ? 'Artist Profile' : 'Production Studio'}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold text-slate-300">
-            {isPerson ? (
-              <>
-                {data.birthday && (
-                  <div>
-                    <span className="text-slate-500 font-medium block">Age</span>
-                    <span className="text-white font-bold">
-                      {getAge(data.birthday, data.deathday)} years old
-                      {data.deathday ? ' (at death)' : ''}
-                      {data.place_of_birth ? ` (Born in ${data.place_of_birth})` : ''}
-                    </span>
-                  </div>
-                )}
-                {data.deathday && (
-                  <div>
-                    <span className="text-slate-500 font-medium block">Died</span>
-                    <span className="text-white font-bold">{data.deathday}</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {data.headquarters && (
-                  <div>
-                    <span className="text-slate-500 font-medium block">Headquarters</span>
-                    <span className="text-white font-bold">{data.headquarters}</span>
-                  </div>
-                )}
-                {data.homepage && (
-                  <div>
-                    <span className="text-slate-500 font-medium block">Website</span>
-                    <a href={data.homepage} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:underline font-bold truncate block">
-                      {data.homepage}
-                    </a>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Biography/Overview */}
-          {(data.biography || data.description) && (
-            <div className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-4xl pt-2 border-t border-slate-800/40">
-              <p 
-                onClick={() => setBioExpanded(!bioExpanded)}
-                className={`whitespace-pre-line text-slate-400 cursor-pointer transition-all duration-350 ${
-                  bioExpanded ? '' : 'line-clamp-6'
-                }`}
-                title={bioExpanded ? "Click to collapse" : "Click to expand biography"}
-              >
-                {data.biography || data.description}
-              </p>
+          <div className="flex flex-col md:flex-row gap-6 sm:gap-8 items-start">
+            {/* Poster / Logo */}
+            <div className={`w-32 sm:w-40 aspect-[2/3] rounded-2xl overflow-hidden border shadow-2xl flex-shrink-0 flex items-center justify-center ${!isPerson ? 'bg-white border-slate-200 p-4' : 'bg-slate-950 border-slate-800'}`}>
+              {isPerson ? (
+                <img 
+                  src={getPosterUrl(data.profile_path)} 
+                  alt={data.name} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                data.logo_path ? (
+                  <img 
+                    src={`https://image.tmdb.org/t/p/w300${data.logo_path}`} 
+                    alt={data.name} 
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="text-slate-950 font-extrabold text-xl text-center leading-tight">{data.name}</div>
+                )
+              )}
             </div>
-          )}
+
+            {/* Text Details */}
+            <div className="flex-1 min-w-0 space-y-4">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap mb-1">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+                    {data.name}
+                  </h1>
+                  {isPerson && (
+                    <button
+                      onClick={handleToggleFavourite}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-md ${
+                        isFavourite
+                          ? 'bg-rose-600 border-rose-500 text-white hover:bg-rose-700'
+                          : 'bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${isFavourite ? 'fill-white' : ''}`} />
+                      {isFavourite ? 'Saved as Favourite' : 'Set as Favourite'}
+                    </button>
+                  )}
+                </div>
+                {isPerson && data.known_for_department && (
+                  <p className="text-xs sm:text-sm font-extrabold text-violet-400 uppercase tracking-wider">
+                    {data.known_for_department}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold text-slate-300">
+                {isPerson ? (
+                  <>
+                    {data.birthday && (
+                      <div>
+                        <span className="text-slate-500 font-medium block">Age</span>
+                        <span className="text-white font-bold">
+                          {getAge(data.birthday, data.deathday)} years old
+                          {data.deathday ? ' (at death)' : ''}
+                          {data.place_of_birth ? ` (Born in ${data.place_of_birth})` : ''}
+                        </span>
+                      </div>
+                    )}
+                    {data.deathday && (
+                      <div>
+                        <span className="text-slate-500 font-medium block">Died</span>
+                        <span className="text-white font-bold">{data.deathday}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {data.headquarters && (
+                      <div>
+                        <span className="text-slate-500 font-medium block">Headquarters</span>
+                        <span className="text-white font-bold">{data.headquarters}</span>
+                      </div>
+                    )}
+                    {data.homepage && (
+                      <div>
+                        <span className="text-slate-500 font-medium block">Website</span>
+                        <a href={data.homepage} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:underline font-bold truncate block">
+                          {data.homepage}
+                        </a>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Main Page Content (Works Grid) */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-16">
 
       {/* Grid of Work Credits */}
       <div className="space-y-6">
@@ -806,6 +907,12 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
             )}
           </>
         )}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-slate-800 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-fade-in">
+          <Heart className="w-4 h-4 text-rose-500 fill-rose-550" />
+          <span className="text-xs font-bold text-slate-200">{toastMessage}</span>
+        </div>
+      )}
       </div>
     </div>
   </div>
@@ -1067,10 +1174,13 @@ export default function ExploreTMDB({
     return () => clearTimeout(timer)
   }, [query])
 
-  // Clear active detail view when query changes
+  // Clear active detail view when query changes, but only if we're not on a URL-param deep link
   useEffect(() => {
     if (query) {
-      setActiveDetail(null)
+      const params = new URLSearchParams(location.search)
+      if (!params.get('type')) {
+        setActiveDetail(null)
+      }
     }
   }, [query])
 
@@ -1094,6 +1204,7 @@ export default function ExploreTMDB({
       poster_path: addingItem.poster_path,
       review: userReview.trim(),
       release_year: releaseYear,
+      release_date: releaseDate || '',
       status: userStatus,
       country: getCountryFromTMDBItem(addingItem),
       original_language: addingItem.original_language || 'en',
@@ -1361,6 +1472,7 @@ export default function ExploreTMDB({
           watchedItems={watchedItems}
           onAddItem={onAddItem}
           navigate={navigate}
+          user={user}
         />
       ) : (
         <>
