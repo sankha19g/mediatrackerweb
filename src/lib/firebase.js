@@ -367,23 +367,37 @@ export const batchAddFirebaseItems = async (userId, itemsList) => {
 export const loadFirebaseSources = async (userId) => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
-  const q = query(collection(dbInstance, 'video_sources'), where('user_id', '==', userId))
-  const querySnapshot = await getDocs(q)
-  const sources = []
-  querySnapshot.forEach((doc) => {
-    sources.push({ id: doc.id, ...doc.data() })
+
+  const sourcesMap = new Map()
+
+  // Query user's private sources
+  if (userId) {
+    const qUser = query(collection(dbInstance, 'video_sources'), where('user_id', '==', userId))
+    const userSnapshot = await getDocs(qUser)
+    userSnapshot.forEach((doc) => {
+      sourcesMap.set(doc.id, { id: doc.id, ...doc.data() })
+    })
+  }
+
+  // Query public sources
+  const qPublic = query(collection(dbInstance, 'video_sources'), where('is_public', '==', true))
+  const publicSnapshot = await getDocs(qPublic)
+  publicSnapshot.forEach((doc) => {
+    sourcesMap.set(doc.id, { id: doc.id, ...doc.data() })
   })
-  // Sort by created_at ascending so original is first
+
+  const sources = Array.from(sourcesMap.values())
   return sources.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
 }
 
-export const addFirebaseSource = async (userId, name, url) => {
+export const addFirebaseSource = async (userId, name, url, isPublic = false) => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
   const sourceData = {
     user_id: userId,
     name: name || '',
     url: url || '',
+    is_public: !!isPublic,
     created_at: new Date().toISOString()
   }
   const docRef = await addDoc(collection(dbInstance, 'video_sources'), sourceData)
@@ -397,26 +411,52 @@ export const deleteFirebaseSource = async (sourceId) => {
   await deleteDoc(docRef)
 }
 
+export const updateFirebaseSource = async (sourceId, name, url, isPublic) => {
+  const dbInstance = getFirebaseDb()
+  if (!dbInstance) throw new Error("Firebase database not initialized")
+  const docRef = doc(dbInstance, 'video_sources', sourceId)
+  const updateData = {}
+  if (name !== undefined) updateData.name = name
+  if (url !== undefined) updateData.url = url
+  if (isPublic !== undefined) updateData.is_public = !!isPublic
+  await updateDoc(docRef, updateData)
+}
+
 // Download Sources Helpers
 export const loadFirebaseDownloadSources = async (userId) => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
-  const q = query(collection(dbInstance, 'download_sources'), where('user_id', '==', userId))
-  const querySnapshot = await getDocs(q)
-  const sources = []
-  querySnapshot.forEach((doc) => {
-    sources.push({ id: doc.id, ...doc.data() })
+
+  const sourcesMap = new Map()
+
+  // Query user's private sources
+  if (userId) {
+    const qUser = query(collection(dbInstance, 'download_sources'), where('user_id', '==', userId))
+    const userSnapshot = await getDocs(qUser)
+    userSnapshot.forEach((doc) => {
+      sourcesMap.set(doc.id, { id: doc.id, ...doc.data() })
+    })
+  }
+
+  // Query public download sources
+  const qPublic = query(collection(dbInstance, 'download_sources'), where('is_public', '==', true))
+  const publicSnapshot = await getDocs(qPublic)
+  publicSnapshot.forEach((doc) => {
+    sourcesMap.set(doc.id, { id: doc.id, ...doc.data() })
   })
+
+  const sources = Array.from(sourcesMap.values())
   return sources.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
 }
 
-export const addFirebaseDownloadSource = async (userId, name, url) => {
+export const addFirebaseDownloadSource = async (userId, name, url, isPublic = false) => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
   const sourceData = {
     user_id: userId,
     name: name || '',
     url: url || '',
+    is_public: !!isPublic,
     created_at: new Date().toISOString()
   }
   const docRef = await addDoc(collection(dbInstance, 'download_sources'), sourceData)
@@ -428,6 +468,17 @@ export const deleteFirebaseDownloadSource = async (sourceId) => {
   if (!dbInstance) throw new Error("Firebase database not initialized")
   const docRef = doc(dbInstance, 'download_sources', sourceId)
   await deleteDoc(docRef)
+}
+
+export const updateFirebaseDownloadSource = async (sourceId, name, url, isPublic) => {
+  const dbInstance = getFirebaseDb()
+  if (!dbInstance) throw new Error("Firebase database not initialized")
+  const docRef = doc(dbInstance, 'download_sources', sourceId)
+  const updateData = {}
+  if (name !== undefined) updateData.name = name
+  if (url !== undefined) updateData.url = url
+  if (isPublic !== undefined) updateData.is_public = !!isPublic
+  await updateDoc(docRef, updateData)
 }
 
 // Saved Sites Helpers

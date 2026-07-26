@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Key, Database, RefreshCw, CheckCircle, AlertTriangle, Shield, Play, UploadCloud, User, LogOut } from 'lucide-react'
-import { isFirebaseConfigured, getFirebaseDb } from '../lib/firebase'
-import { isTMDBConfigured } from '../lib/tmdb'
+import React, { useState } from 'react'
+import { Shield, Play, UploadCloud, User, LogOut } from 'lucide-react'
 import Auth from './Auth'
 import Sources from './Sources'
 import ImportExport from './ImportExport'
@@ -9,95 +7,28 @@ import ImportExport from './ImportExport'
 export default function Settings({
   // Auth / Account props
   user,
+  isAdmin,
   onAuthSuccess,
   onLogout,
-  
-  // Developer keys props
-  onConfigChange,
   
   // Sources props
   sources,
   onAddSource,
   onRemoveSource,
+  onUpdateSource,
   downloadSources,
   onAddDownloadSource,
   onRemoveDownloadSource,
+  onUpdateDownloadSource,
   
   // Import/Export props
   items,
   onAddImportedItems
 }) {
-  const [activeTab, setActiveTab] = useState('account') // 'account', 'keys', 'sources', 'import_export'
-  const [tmdbApiKey, setTmdbApiKey] = useState('')
-  const [omdbApiKey, setOmdbApiKey] = useState('')
-  const [status, setStatus] = useState({ type: '', message: '' })
-
-  useEffect(() => {
-    setTmdbApiKey(localStorage.getItem('tmdb_api_key') || '')
-    setOmdbApiKey(localStorage.getItem('omdb_api_key') || '')
-  }, [])
-
-  const handleSave = (e) => {
-    e.preventDefault()
-    try {
-      if (tmdbApiKey) {
-        localStorage.setItem('tmdb_api_key', tmdbApiKey.trim())
-      } else {
-        localStorage.removeItem('tmdb_api_key')
-      }
-      
-      if (omdbApiKey) {
-        localStorage.setItem('omdb_api_key', omdbApiKey.trim())
-      } else {
-        localStorage.removeItem('omdb_api_key')
-      }
-      
-      setStatus({
-        type: 'success',
-        message: 'Configuration saved successfully! Reloading connection...'
-      })
-      
-      if (onConfigChange) {
-        onConfigChange()
-      }
-      
-      setTimeout(() => {
-        setStatus({ type: '', message: '' })
-        window.location.reload()
-      }, 1500)
-    } catch (err) {
-      setStatus({
-        type: 'error',
-        message: 'Failed to save configuration: ' + err.message
-      })
-    }
-  }
-
-  const handleClear = () => {
-    localStorage.removeItem('tmdb_api_key')
-    localStorage.removeItem('omdb_api_key')
-    setTmdbApiKey('')
-    setOmdbApiKey('')
-    
-    setStatus({
-      type: 'success',
-      message: 'Credentials cleared. TMDB is now in mock mode.'
-    })
-    if (onConfigChange) {
-      onConfigChange()
-    }
-    setTimeout(() => {
-      setStatus({ type: '', message: '' })
-      window.location.reload()
-    }, 1500)
-  }
-
-  const isConnectedToFirebase = isFirebaseConfigured()
-  const isConnectedToTMDB = isTMDBConfigured()
+  const [activeTab, setActiveTab] = useState('account') // 'account', 'sources', 'import_export'
 
   const tabs = [
     { id: 'account', label: 'Account Protection', icon: Shield },
-    { id: 'keys', label: 'Developer Keys', icon: Key },
     { id: 'sources', label: 'Choose Sources', icon: Play },
     { id: 'import_export', label: 'Import / Export', icon: UploadCloud }
   ]
@@ -110,7 +41,7 @@ export default function Settings({
           CineLog Configuration & Settings
         </h1>
         <p className="text-slate-400 text-sm">
-          Customize your API connections, account protection, media streaming sources, and import/export lists.
+          Customize your account protection, media streaming sources, and import/export lists.
         </p>
       </div>
 
@@ -178,136 +109,8 @@ export default function Settings({
               ) : (
                 <Auth 
                   onAuthSuccess={onAuthSuccess} 
-                  onNavigateToSettings={() => setActiveTab('keys')}
                 />
               )}
-            </div>
-          )}
-
-          {activeTab === 'keys' && (
-            <div className="space-y-6">
-              {status.message && (
-                <div className={`p-4 rounded-xl mb-6 flex items-start gap-3 border ${
-                  status.type === 'success' 
-                    ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' 
-                    : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
-                }`}>
-                  {status.type === 'success' ? (
-                    <CheckCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-400" />
-                  ) : (
-                    <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0 text-rose-400" />
-                  )}
-                  <span>{status.message}</span>
-                </div>
-              )}
-
-              {/* Connection Status Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className={`p-4 rounded-xl border flex flex-col justify-between ${
-                  isConnectedToFirebase 
-                    ? 'bg-indigo-950/20 border-indigo-500/20' 
-                    : 'bg-slate-900/40 border-slate-800'
-                }`}>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Database className="w-5 h-5 text-indigo-400" />
-                      <h3 className="font-semibold text-white text-sm">Firebase Cloud Sync</h3>
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Connected to project "media-tracker-sankha" and ready to synchronize your watchlist.
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded w-fit mt-3 bg-emerald-500/10 text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Sync Active
-                  </span>
-                </div>
-
-                <div className={`p-4 rounded-xl border flex flex-col justify-between ${
-                  isConnectedToTMDB 
-                    ? 'bg-violet-950/20 border-violet-500/20' 
-                    : 'bg-slate-900/40 border-slate-800'
-                }`}>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Key className="w-5 h-5 text-violet-400" />
-                      <h3 className="font-semibold text-white text-sm">TMDB Database Connection</h3>
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      {isConnectedToTMDB 
-                        ? 'Connected. Explore page pulls live details from TMDB.' 
-                        : 'Using curated offline list of popular movies and TV shows.'}
-                    </p>
-                  </div>
-                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded w-fit mt-3 ${
-                    isConnectedToTMDB 
-                      ? 'bg-emerald-500/10 text-emerald-400' 
-                      : 'bg-amber-500/10 text-amber-400'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isConnectedToTMDB ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                    {isConnectedToTMDB ? 'Live Connected' : 'Mock Mode'}
-                  </span>
-                </div>
-              </div>
-
-              <form onSubmit={handleSave} className="space-y-6 bg-slate-900/30 border border-slate-800 p-6 rounded-2xl backdrop-blur-xl">
-                <h2 className="text-base font-bold text-white mb-2 pb-2 flex items-center gap-2 border-b border-slate-800">
-                  <Key className="w-5 h-5 text-violet-400" />
-                  TMDB Live Access
-                </h2>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-350 uppercase tracking-wider mb-1">
-                    TMDB Read Access Token or API Key (v3)
-                  </label>
-                  <input
-                    type="password"
-                    value={tmdbApiKey}
-                    onChange={(e) => setTmdbApiKey(e.target.value)}
-                    placeholder="e.g. 5da7e6..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500 transition-colors text-sm"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1.5">
-                    Don't have a key? Register on <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline">TMDB</a> to get a free API Key.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-355 uppercase tracking-wider mb-1">
-                    OMDb API Key (Optional)
-                  </label>
-                  <input
-                    type="password"
-                    value={omdbApiKey}
-                    onChange={(e) => setOmdbApiKey(e.target.value)}
-                    placeholder="Custom OMDb Key (Default fallback active)"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500 transition-colors text-sm"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1.5">
-                    Used for fetching IMDb, Rotten Tomatoes & Metacritic scores. Get a free key on <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline">OMDb API</a>.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-800/60">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer text-sm"
-                  >
-                    <RefreshCw className="w-4 h-4 animate-spin-hover" />
-                    Save & Connect
-                  </button>
-                  
-                  {tmdbApiKey && (
-                    <button
-                      type="button"
-                      onClick={handleClear}
-                      className="bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 font-semibold py-2.5 px-4 rounded-xl transition-all cursor-pointer text-sm"
-                    >
-                      Reset to Mock Mode
-                    </button>
-                  )}
-                </div>
-              </form>
             </div>
           )}
 
@@ -316,10 +119,13 @@ export default function Settings({
               sources={sources}
               onAddSource={onAddSource}
               onRemoveSource={onRemoveSource}
+              onUpdateSource={onUpdateSource}
               downloadSources={downloadSources}
               onAddDownloadSource={onAddDownloadSource}
               onRemoveDownloadSource={onRemoveDownloadSource}
+              onUpdateDownloadSource={onUpdateDownloadSource}
               user={user}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -335,3 +141,4 @@ export default function Settings({
     </div>
   )
 }
+

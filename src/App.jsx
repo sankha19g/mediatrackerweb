@@ -13,9 +13,11 @@ import {
   loadFirebaseSources,
   addFirebaseSource,
   deleteFirebaseSource,
+  updateFirebaseSource,
   loadFirebaseDownloadSources,
   addFirebaseDownloadSource,
   deleteFirebaseDownloadSource,
+  updateFirebaseDownloadSource,
   loadFirebaseSavedSites,
   addFirebaseSavedSite,
   deleteFirebaseSavedSite,
@@ -144,9 +146,12 @@ export default function App() {
       // Local streaming sources
       const localData = localStorage.getItem('local_video_sources')
       if (localData) {
-        setSources(JSON.parse(localData))
+        const parsed = JSON.parse(localData)
+        const unique = Array.from(new Map(parsed.map(s => [(s.name || '').trim().toLowerCase(), s])).values())
+        setSources(unique)
+        localStorage.setItem('local_video_sources', JSON.stringify(unique))
       } else {
-        const defaultSources = [{ id: 'default_4k', name: '4K', url: 'https://player.videasy.to/movie/{ID}' }]
+        const defaultSources = [{ id: 'default_4k', name: '4K', url: 'https://player.videasy.to/movie/{id}' }]
         setSources(defaultSources)
         localStorage.setItem('local_video_sources', JSON.stringify(defaultSources))
       }
@@ -154,9 +159,12 @@ export default function App() {
       // Local download sources
       const localDownloadData = localStorage.getItem('local_download_sources')
       if (localDownloadData) {
-        setDownloadSources(JSON.parse(localDownloadData))
+        const parsed = JSON.parse(localDownloadData)
+        const unique = Array.from(new Map(parsed.map(s => [(s.name || '').trim().toLowerCase(), s])).values())
+        setDownloadSources(unique)
+        localStorage.setItem('local_download_sources', JSON.stringify(unique))
       } else {
-        const defaultDownloads = [{ id: 'default_download', name: 'Moviepire', url: 'https://video.moviepire.co/download/movie/{ID}' }]
+        const defaultDownloads = [{ id: 'default_download', name: 'Moviepire', url: 'https://video.moviepire.co/download/movie/{id}' }]
         setDownloadSources(defaultDownloads)
         localStorage.setItem('local_download_sources', JSON.stringify(defaultDownloads))
       }
@@ -169,34 +177,73 @@ export default function App() {
     try {
       // Load streaming sources
       const dbSources = await loadFirebaseSources(currentUser.uid)
-      if (dbSources.length === 0) {
-        const defaultSource = await addFirebaseSource(currentUser.uid, '4K', 'https://player.videasy.to/movie/{ID}')
-        setSources([defaultSource])
-      } else {
-        setSources(dbSources)
+      const uniqueSourcesMap = new Map()
+      const duplicatesToDelete = []
+
+      for (const src of dbSources) {
+        const key = (src.name || '').trim().toLowerCase()
+        if (!uniqueSourcesMap.has(key)) {
+          uniqueSourcesMap.set(key, src)
+        } else {
+          duplicatesToDelete.push(src.id)
+        }
       }
+
+      // Automatically delete duplicate entries from Firebase
+      duplicatesToDelete.forEach(id => deleteFirebaseSource(id).catch(() => {}))
+
+      let finalSources = Array.from(uniqueSourcesMap.values())
+      if (finalSources.length === 0) {
+        const defaultSource = await addFirebaseSource(currentUser.uid, '4K', 'https://player.videasy.to/movie/{id}')
+        finalSources = [defaultSource]
+      }
+      setSources(finalSources)
 
       // Load download sources
       const dbDownloadSources = await loadFirebaseDownloadSources(currentUser.uid)
-      if (dbDownloadSources.length === 0) {
-        const defaultDownload = await addFirebaseDownloadSource(currentUser.uid, 'Moviepire', 'https://video.moviepire.co/download/movie/{ID}')
-        setDownloadSources([defaultDownload])
-      } else {
-        setDownloadSources(dbDownloadSources)
+      const uniqueDownloadMap = new Map()
+      const downloadDuplicatesToDelete = []
+
+      for (const src of dbDownloadSources) {
+        const key = (src.name || '').trim().toLowerCase()
+        if (!uniqueDownloadMap.has(key)) {
+          uniqueDownloadMap.set(key, src)
+        } else {
+          downloadDuplicatesToDelete.push(src.id)
+        }
       }
+
+      downloadDuplicatesToDelete.forEach(id => deleteFirebaseDownloadSource(id).catch(() => {}))
+
+      let finalDownloads = Array.from(uniqueDownloadMap.values())
+      if (finalDownloads.length === 0) {
+        const defaultDownload = await addFirebaseDownloadSource(currentUser.uid, 'Moviepire', 'https://video.moviepire.co/download/movie/{id}')
+        finalDownloads = [defaultDownload]
+      }
+      setDownloadSources(finalDownloads)
     } catch (err) {
       console.error('Failed to load Firebase sources:', err)
       loadLocalSources()
     }
   }
 
-  const handleAddSource = async (name, url) => {
+  let adminEmail = localStorage.getItem('cinelog_admin_email')
+  if (user?.email && (!adminEmail || adminEmail === 'undefined')) {
+    localStorage.setItem('cinelog_admin_email', user.email.toLowerCase())
+    adminEmail = user.email.toLowerCase()
+  }
+  const isAdmin = user 
+    ? (user.email && adminEmail ? user.email.toLowerCase() === adminEmail.toLowerCase() : true) 
+    : true
+
+  const handleAddSource = async (name, url, isPublic = false) => {
     const isCloud = isFirebaseConfigured() && user
+    const canMakePublic = isAdmin && isPublic
     if (isCloud) {
       try {
-        const newSource = await addFirebaseSource(user.uid, name, url)
+        const newSource = await addFirebaseSource(user.uid, name, url, canMakePublic)
         setSources(prev => [...prev, newSource])
-        showSyncBanner('success', `Added source "${name}" to cloud.`)
+        showSyncBanner('success', `Added ${canMakePublic ? 'public' : 'private'} source "${name}" to cloud.`)
       } catch (err) {
         console.error('Failed to add source:', err)
         showSyncBanner('error', 'Could not save source to database.')
@@ -206,6 +253,7 @@ export default function App() {
         id: `local_source_${Date.now()}`,
         name,
         url,
+        is_public: false,
         created_at: new Date().toISOString()
       }
       const updated = [...sources, newSource]
@@ -237,13 +285,14 @@ export default function App() {
     }
   }
 
-  const handleAddDownloadSource = async (name, url) => {
+  const handleAddDownloadSource = async (name, url, isPublic = false) => {
     const isCloud = isFirebaseConfigured() && user
+    const canMakePublic = isAdmin && isPublic
     if (isCloud) {
       try {
-        const newSource = await addFirebaseDownloadSource(user.uid, name, url)
+        const newSource = await addFirebaseDownloadSource(user.uid, name, url, canMakePublic)
         setDownloadSources(prev => [...prev, newSource])
-        showSyncBanner('success', `Added download source "${name}" to cloud.`)
+        showSyncBanner('success', `Added ${canMakePublic ? 'public' : 'private'} download source "${name}" to cloud.`)
       } catch (err) {
         console.error('Failed to add download source:', err)
         showSyncBanner('error', 'Could not save download source to database.')
@@ -253,6 +302,7 @@ export default function App() {
         id: `local_download_source_${Date.now()}`,
         name,
         url,
+        is_public: false,
         created_at: new Date().toISOString()
       }
       const updated = [...downloadSources, newSource]
@@ -281,6 +331,54 @@ export default function App() {
       setDownloadSources(updated)
       localStorage.setItem('local_download_sources', JSON.stringify(updated))
       showSyncBanner('success', `Removed download source "${sourceName}" locally.`)
+    }
+  }
+
+  const handleUpdateSource = async (sourceId, name, url, isPublic) => {
+    const isCloud = isFirebaseConfigured() && user
+    const target = sources.find(s => s.id === sourceId)
+    const newName = name !== undefined ? name : target?.name
+    const newUrl = url !== undefined ? url : target?.url
+    const canMakePublic = isAdmin ? (isPublic !== undefined ? isPublic : target?.is_public) : false
+
+    if (isCloud && typeof sourceId === 'string' && !sourceId.startsWith('local_source_')) {
+      try {
+        await updateFirebaseSource(sourceId, newName, newUrl, canMakePublic)
+        setSources(prev => prev.map(s => s.id === sourceId ? { ...s, name: newName, url: newUrl, is_public: canMakePublic } : s))
+        showSyncBanner('success', `Updated source "${newName}".`)
+      } catch (err) {
+        console.error('Failed to update source:', err)
+        showSyncBanner('error', 'Could not update source in database.')
+      }
+    } else {
+      const updated = sources.map(s => s.id === sourceId ? { ...s, name: newName, url: newUrl, is_public: canMakePublic } : s)
+      setSources(updated)
+      localStorage.setItem('local_video_sources', JSON.stringify(updated))
+      showSyncBanner('success', `Updated source "${newName}" locally.`)
+    }
+  }
+
+  const handleUpdateDownloadSource = async (sourceId, name, url, isPublic) => {
+    const isCloud = isFirebaseConfigured() && user
+    const target = downloadSources.find(s => s.id === sourceId)
+    const newName = name !== undefined ? name : target?.name
+    const newUrl = url !== undefined ? url : target?.url
+    const canMakePublic = isAdmin ? (isPublic !== undefined ? isPublic : target?.is_public) : false
+
+    if (isCloud && typeof sourceId === 'string' && !sourceId.startsWith('local_download_source_')) {
+      try {
+        await updateFirebaseDownloadSource(sourceId, newName, newUrl, canMakePublic)
+        setDownloadSources(prev => prev.map(s => s.id === sourceId ? { ...s, name: newName, url: newUrl, is_public: canMakePublic } : s))
+        showSyncBanner('success', `Updated download source "${newName}".`)
+      } catch (err) {
+        console.error('Failed to update download source:', err)
+        showSyncBanner('error', 'Could not update download source in database.')
+      }
+    } else {
+      const updated = downloadSources.map(s => s.id === sourceId ? { ...s, name: newName, url: newUrl, is_public: canMakePublic } : s)
+      setDownloadSources(updated)
+      localStorage.setItem('local_download_sources', JSON.stringify(updated))
+      showSyncBanner('success', `Updated download source "${newName}" locally.`)
     }
   }
 
@@ -754,15 +852,18 @@ export default function App() {
               <Route path="/settings" element={
                 <Settings 
                   user={user}
+                  isAdmin={isAdmin}
                   onAuthSuccess={handleAuthSuccess}
                   onLogout={handleLogout}
                   onConfigChange={handleConfigChange}
                   sources={sources}
                   onAddSource={handleAddSource}
                   onRemoveSource={handleRemoveSource}
+                  onUpdateSource={handleUpdateSource}
                   downloadSources={downloadSources}
                   onAddDownloadSource={handleAddDownloadSource}
                   onRemoveDownloadSource={handleRemoveDownloadSource}
+                  onUpdateDownloadSource={handleUpdateDownloadSource}
                   items={items}
                   onAddImportedItems={handleAddImportedItems}
                 />
@@ -788,10 +889,13 @@ export default function App() {
                   sources={sources}
                   onAddSource={handleAddSource}
                   onRemoveSource={handleRemoveSource}
+                  onUpdateSource={handleUpdateSource}
                   downloadSources={downloadSources}
                   onAddDownloadSource={handleAddDownloadSource}
                   onRemoveDownloadSource={handleRemoveDownloadSource}
+                  onUpdateDownloadSource={handleUpdateDownloadSource}
                   user={user}
+                  isAdmin={isAdmin}
                 />
               } />
 
