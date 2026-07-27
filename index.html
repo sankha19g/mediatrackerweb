@@ -7,6 +7,10 @@
     <!-- SEO Meta Tags -->
     <title>CineLog</title>
     <meta name="description" content="Track your favorite movies, TV shows, and games. Explore trending titles from TMDB, manage your personal watched list, and sync your collections securely." />
+    <!-- PWA Meta Tags & Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#030303" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,5 +19,15 @@
   <body class="bg-slate-950 text-slate-100 min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- Register Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => console.log('Service worker registered.', reg))
+            .catch((err) => console.log('Service worker registration failed.', err));
+        });
+      }
+    </script>
   </body>
 </html>

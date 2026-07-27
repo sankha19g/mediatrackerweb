@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLink, Play, Check, ChevronDown, ChevronUp, Sparkles, ChevronLeft, ChevronRight, Download, Plus, CheckSquare, Eye, Tag, X, Bookmark, Edit, Award, DollarSign, Lock, Users } from 'lucide-react'
+import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLink, Play, Check, ChevronDown, ChevronUp, Sparkles, ChevronLeft, ChevronRight, Download, Plus, Minus, CheckSquare, Eye, Tag, X, Bookmark, Edit, Award, DollarSign, Lock, Users } from 'lucide-react'
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
 import { fetchOMDBData } from '../lib/omdb'
 
@@ -1526,13 +1526,341 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         seasons_watched: newSeasonsWatched,
         status: targetStatus
       })
-      if (item.id !== targetItem.id) {
-        onUpdateItem(item.id, {
-          seasons_watched: newSeasonsWatched,
-          status: targetStatus
-        })
-      }
     }
+  }
+
+  const renderTvTracker = (deviceType) => {
+    if ((type !== 'tv' && item.type !== 'tv') || seasons.length === 0) return null
+
+    const seasonEpisodes = currentSeasonDetails?.episodes || []
+    const maxSeasonEps = currentSeason?.episode_count || seasonEpisodes.length || 1
+
+    const isNotStarted = currentEpisodesWatched === 0
+    const currentEp = !isNotStarted && seasonEpisodes.length > 0
+      ? seasonEpisodes[Math.min(currentEpisodesWatched - 1, seasonEpisodes.length - 1)]
+      : null
+
+    const nextEpIndex = currentEpisodesWatched
+    const nextEp = seasonEpisodes[nextEpIndex]
+
+    const wrapperClass = deviceType === 'mobile' ? 'block lg:hidden mb-6' : 'hidden lg:block'
+
+    return (
+      <div className={wrapperClass}>
+        <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-5">
+          {/* Season Pill Navigator */}
+          <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-800/80">
+            {seasons.map(s => {
+              const sNum = s.season_number
+              const totalEpsInS = s.episode_count || 1
+              const unreleased = isSeasonUnreleased(s)
+
+              if (unreleased) {
+                return (
+                  <button
+                    key={sNum}
+                    disabled
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-[#0d101a] text-slate-500 border border-dashed border-slate-800/90 cursor-not-allowed opacity-75 shadow-inner"
+                    title={`Season ${sNum} - To Be Released`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                    <span>Season {sNum} To Be Released</span>
+                  </button>
+                )
+              }
+
+              const isCompletedSeason = isShowCompleted || seasonsWatched.includes(sNum)
+              const isCurrentWatchingSeason = sNum === currentSeasonNum && !isCompletedSeason
+
+              // Calculate progress percentage for current watching season
+              const sProgressCount = isCurrentWatchingSeason ? currentEpisodesWatched : (isCompletedSeason ? totalEpsInS : 0)
+              const pctWatched = Math.min(100, Math.round((sProgressCount / totalEpsInS) * 100))
+
+              const handlePillClick = () => {
+                if (item.isExplore) {
+                  setAddStatus('watching')
+                  setAddReview('')
+                  setIsStatusModalOpen(true)
+                } else {
+                  setSeasonModalSeason(sNum)
+                }
+              }
+
+              if (isCompletedSeason) {
+                // Completed season: Green pill
+                return (
+                  <button
+                    key={sNum}
+                    onClick={handlePillClick}
+                    className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 shadow-sm hover:border-emerald-400 transition-all cursor-pointer"
+                    title={`Season ${sNum} - Completed (${totalEpsInS}/${totalEpsInS} eps)`}
+                  >
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>S{sNum}</span>
+                  </button>
+                )
+              }
+
+              if (isCurrentWatchingSeason) {
+                // Current watching season: Purple pill with dynamic percentage fill progress!
+                return (
+                  <button
+                    key={sNum}
+                    onClick={handlePillClick}
+                    className="relative overflow-hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-violet-950/80 text-white border border-violet-500/60 shadow-[0_0_15px_rgba(139,92,246,0.3)] hover:border-violet-400 transition-all cursor-pointer"
+                    title={`Season ${sNum} - Watching ${sProgressCount}/${totalEpsInS} eps (${pctWatched}%)`}
+                  >
+                    {/* Background fill progress bar */}
+                    <div
+                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-650 to-purple-600 opacity-70 transition-all duration-500 z-0"
+                      style={{ width: `${pctWatched}%` }}
+                    />
+                    <span className="relative z-10 flex items-center gap-1">
+                      <span>S{sNum}</span>
+                      <span className="text-violet-200 font-extrabold text-[11px]">- {sProgressCount}/{totalEpsInS}</span>
+                    </span>
+                  </button>
+                )
+              }
+
+              // Unwatched season: No color / subtle dark pill
+              return (
+                <button
+                  key={sNum}
+                  onClick={handlePillClick}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#101424] text-slate-400 border border-slate-800 hover:text-slate-200 hover:border-slate-700 transition-all cursor-pointer"
+                  title={`Season ${sNum} - Unwatched (${totalEpsInS} eps)`}
+                >
+                  <span>S{sNum}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Header Row with Highlighted Season Badges & Quick Increment */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Tv className="w-5 h-5 text-violet-400" />
+                <h3 className="text-lg font-extrabold text-white tracking-tight">
+                  Season & Episode Tracker
+                </h3>
+              </div>
+
+              {/* Highlighted Season & Episode Badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 bg-violet-500/15 border border-violet-500/30 text-violet-350 font-extrabold px-3 py-1 text-xs rounded-xl shadow-sm">
+                  <Tag className="w-3.5 h-3.5 text-violet-400" />
+                  Season {currentSeasonNum}
+                </span>
+                <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-350 font-extrabold px-3 py-1 text-xs rounded-xl shadow-sm">
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  {currentEpisodesWatched} of {maxSeasonEps} Episodes Watched
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Increment */}
+            {!item.isExplore && currentSeason && (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.max(0, currentEpisodesWatched - 1), maxSeasonEps)}
+                  disabled={currentEpisodesWatched <= 0}
+                  className="w-9 h-9 rounded-full bg-[#101424] hover:bg-[#181e36] disabled:opacity-40 border border-violet-500/50 shadow-[0_0_8px_rgba(139,92,246,0.25)] hover:border-violet-400 hover:shadow-[0_0_12px_rgba(139,92,246,0.5)] text-slate-200 flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                  title="Decrease Episode"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.min(maxSeasonEps, currentEpisodesWatched + 1), maxSeasonEps)}
+                  disabled={currentEpisodesWatched >= maxSeasonEps}
+                  className="w-9 h-9 rounded-full bg-gradient-to-r from-violet-650 to-indigo-650 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 text-white flex items-center justify-center transition-all cursor-pointer border border-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.5)] hover:border-violet-300 hover:shadow-[0_0_15px_rgba(139,92,246,0.75)] active:scale-95"
+                  title="Increase Episode"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Overall & Season Progress Bars */}
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-violet-400"></span>
+                  Season {currentSeasonNum} Progress
+                </span>
+                <span className="text-violet-400 font-extrabold">
+                  {maxSeasonEps > 0 ? Math.round((currentEpisodesWatched / maxSeasonEps) * 100) : 0}% ({currentEpisodesWatched} / {maxSeasonEps} eps)
+                </span>
+              </div>
+              <div className="w-full bg-[#101424] rounded-full h-2 overflow-hidden border border-slate-800/85 text-slate-200">
+                <div
+                  className="bg-gradient-to-r from-violet-500 to-indigo-400 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${maxSeasonEps > 0 ? Math.min(100, Math.round((currentEpisodesWatched / maxSeasonEps) * 100)) : 0}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  Overall Show Progress
+                </span>
+                <span className="text-emerald-400 font-extrabold">
+                  {totalEpisodes > 0 ? Math.round((myTotalEpisodesWatched / totalEpisodes) * 100) : 0}% ({myTotalEpisodesWatched} / {totalEpisodes} eps)
+                </span>
+              </div>
+              <div className="w-full bg-[#101424] rounded-full h-2 overflow-hidden border border-slate-800/85">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${totalEpisodes > 0 ? Math.min(100, Math.round((myTotalEpisodesWatched / totalEpisodes) * 100)) : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CURRENT EPISODE & NEXT EPISODE CARDS WITH PHOTO & TITLE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {/* Current Episode Card */}
+            <div className="bg-[#101424] border border-violet-500/50 hover:border-violet-400 rounded-2xl p-4 flex flex-col justify-between gap-3 relative overflow-hidden shadow-[0_0_20px_rgba(139,92,246,0.25)] hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all duration-300 group">
+              {/* Top Glowing Accent Stripe */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-indigo-500 to-purple-500" />
+              
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-violet-300 bg-violet-500/15 border border-violet-500/30 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                  <Eye className="w-3 h-3 text-violet-400" />
+                  Current Episode {currentEp ? `(S${currentSeasonNum} E${currentEp.episode_number})` : ''}
+                </span>
+                {currentEp?.vote_average > 0 && (
+                  <span className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    {currentEp.vote_average.toFixed(1)}
+                  </span>
+                )}
+              </div>
+
+              {isNotStarted ? (
+                <div className="flex items-center gap-3 py-1">
+                  <div className="w-24 h-16 sm:w-28 sm:h-18 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex-shrink-0 flex items-center justify-center text-slate-600">
+                    <Lock className="w-6 h-6 text-slate-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-extrabold text-slate-300 leading-snug">
+                      Season {currentSeasonNum} Not Started
+                    </h4>
+                    <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed">
+                      You haven't started Season {currentSeasonNum} yet. Episode 1 is ready in Up Next!
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <div className="w-24 h-16 sm:w-28 sm:h-18 rounded-xl overflow-hidden bg-slate-955 border border-slate-800 flex-shrink-0 relative shadow-md">
+                    {currentEp?.still_path ? (
+                      <img
+                        src={`https://image.tmdb.org/t/p/w300${currentEp.still_path}`}
+                        alt={currentEp.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : backdropUrl ? (
+                      <img
+                        src={backdropUrl}
+                        alt="Backdrop"
+                        className="w-full h-full object-cover opacity-60"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-600 bg-slate-900">
+                        <Tv className="w-6 h-6 text-slate-700" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-extrabold text-white leading-snug line-clamp-1">
+                      {currentEp?.name || `Episode ${currentEpisodesWatched}`}
+                    </h4>
+                    <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
+                      {currentEp?.air_date && <span>{currentEp.air_date.split('-')[0]}</span>}
+                      {currentEp?.runtime && (
+                        <>
+                          <span>·</span>
+                          <span>{currentEp.runtime}m</span>
+                        </>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Next Episode Card (Up Next) */}
+            <div className="bg-[#101424] border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between gap-3 relative overflow-hidden shadow-xl group">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                  <Play className="w-3 h-3 text-emerald-400" />
+                  Up Next {nextEp ? `(S${currentSeasonNum} E${nextEp.episode_number})` : ''}
+                </span>
+                {nextEp?.vote_average > 0 && (
+                  <span className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    {nextEp.vote_average.toFixed(1)}
+                  </span>
+                )}
+              </div>
+
+              {nextEp ? (
+                <div className="flex items-start gap-3">
+                  <div className="w-24 h-16 sm:w-28 sm:h-18 rounded-xl overflow-hidden bg-slate-955 border border-slate-800 flex-shrink-0 relative shadow-md">
+                    {nextEp.still_path ? (
+                      <img
+                        src={`https://image.tmdb.org/t/p/w300${nextEp.still_path}`}
+                        alt={nextEp.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : backdropUrl ? (
+                      <img
+                        src={backdropUrl}
+                        alt="Backdrop"
+                        className="w-full h-full object-cover opacity-60"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-600 bg-slate-900">
+                        <Tv className="w-6 h-6 text-slate-700" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-extrabold text-white leading-snug line-clamp-1">
+                      {nextEp.name}
+                    </h4>
+                    <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
+                      {nextEp.air_date && <span>{nextEp.air_date.split('-')[0]}</span>}
+                      {nextEp.runtime && (
+                        <>
+                          <span>·</span>
+                          <span>{nextEp.runtime}m</span>
+                        </>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              ) : (
+                <div className="py-4 text-center text-emerald-400 text-xs font-extrabold bg-emerald-500/5 rounded-xl border border-emerald-500/10 flex items-center justify-center gap-2">
+                  <Check className="w-4 h-4" />
+                  Season {currentSeasonNum} Completed! All episodes watched.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -1719,6 +2047,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
       {/* Main 2-Column Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {renderTvTracker('mobile')}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ========================================================================= */}
         {/* LEFT SIDEBAR COLUMN (lg:col-span-4) */}
@@ -1939,340 +2268,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         {/* ========================================================================= */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           {/* TV Show Progress & Episode Tracker Section */}
-          {(type === 'tv' || item.type === 'tv') && seasons.length > 0 && (() => {
-            const seasonEpisodes = currentSeasonDetails?.episodes || []
-            const maxSeasonEps = currentSeason?.episode_count || seasonEpisodes.length || 1
-
-            const isNotStarted = currentEpisodesWatched === 0
-            const currentEp = !isNotStarted && seasonEpisodes.length > 0
-              ? seasonEpisodes[Math.min(currentEpisodesWatched - 1, seasonEpisodes.length - 1)]
-              : null
-
-            const nextEpIndex = currentEpisodesWatched
-            const nextEp = seasonEpisodes[nextEpIndex]
-
-            return (
-              <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-5">
-                {/* Season Pill Navigator */}
-                <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-800/80">
-                  {seasons.map(s => {
-                    const sNum = s.season_number
-                    const totalEpsInS = s.episode_count || 1
-                    const unreleased = isSeasonUnreleased(s)
-
-                    if (unreleased) {
-                      return (
-                        <button
-                          key={sNum}
-                          disabled
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-[#0d101a] text-slate-500 border border-dashed border-slate-800/90 cursor-not-allowed opacity-75 shadow-inner"
-                          title={`Season ${sNum} - To Be Released`}
-                        >
-                          <Clock className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-                          <span>Season {sNum} To Be Released</span>
-                        </button>
-                      )
-                    }
-
-                    const isCompletedSeason = isShowCompleted || seasonsWatched.includes(sNum)
-                    const isCurrentWatchingSeason = sNum === currentSeasonNum && !isCompletedSeason
-
-                    // Calculate progress percentage for current watching season
-                    const sProgressCount = isCurrentWatchingSeason ? currentEpisodesWatched : (isCompletedSeason ? totalEpsInS : 0)
-                    const pctWatched = Math.min(100, Math.round((sProgressCount / totalEpsInS) * 100))
-
-                    const handlePillClick = () => {
-                      if (item.isExplore) {
-                        setAddStatus('watching')
-                        setAddReview('')
-                        setIsStatusModalOpen(true)
-                      } else {
-                        setSeasonModalSeason(sNum)
-                      }
-                    }
-
-                    if (isCompletedSeason) {
-                      // Completed season: Green pill
-                      return (
-                        <button
-                          key={sNum}
-                          onClick={handlePillClick}
-                          className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 shadow-sm hover:border-emerald-400 transition-all cursor-pointer"
-                          title={`Season ${sNum} - Completed (${totalEpsInS}/${totalEpsInS} eps)`}
-                        >
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>S{sNum}</span>
-                        </button>
-                      )
-                    }
-
-                    if (isCurrentWatchingSeason) {
-                      // Current watching season: Purple pill with dynamic percentage fill progress!
-                      return (
-                        <button
-                          key={sNum}
-                          onClick={handlePillClick}
-                          className="relative overflow-hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-violet-950/80 text-white border border-violet-500/60 shadow-[0_0_15px_rgba(139,92,246,0.3)] hover:border-violet-400 transition-all cursor-pointer"
-                          title={`Season ${sNum} - Watching ${sProgressCount}/${totalEpsInS} eps (${pctWatched}%)`}
-                        >
-                          {/* Background fill progress bar */}
-                          <div
-                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-600 to-purple-600 opacity-70 transition-all duration-500 z-0"
-                            style={{ width: `${pctWatched}%` }}
-                          />
-                          <span className="relative z-10 flex items-center gap-1">
-                            <span>S{sNum}</span>
-                            <span className="text-violet-200 font-extrabold text-[11px]">- {sProgressCount}/{totalEpsInS}</span>
-                          </span>
-                        </button>
-                      )
-                    }
-
-                    // Unwatched season: No color / subtle dark pill
-                    return (
-                      <button
-                        key={sNum}
-                        onClick={handlePillClick}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#101424] text-slate-400 border border-slate-800 hover:text-slate-200 hover:border-slate-700 transition-all cursor-pointer"
-                        title={`Season ${sNum} - Unwatched (${totalEpsInS} eps)`}
-                      >
-                        <span>S{sNum}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {/* Header Row with Highlighted Season Badges & Quick Increment */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Tv className="w-5 h-5 text-violet-400" />
-                      <h3 className="text-lg font-extrabold text-white tracking-tight">
-                        Season & Episode Tracker
-                      </h3>
-                    </div>
-
-                    {/* Highlighted Season & Episode Badges */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1.5 bg-violet-500/15 border border-violet-500/30 text-violet-300 font-extrabold px-3 py-1 text-xs rounded-xl shadow-sm">
-                        <Tag className="w-3.5 h-3.5 text-violet-400" />
-                        Season {currentSeasonNum}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-extrabold px-3 py-1 text-xs rounded-xl shadow-sm">
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        {currentEpisodesWatched} of {maxSeasonEps} Episodes Watched
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Quick Increment */}
-                  {!item.isExplore && currentSeason && (
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                      <button
-                        onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.max(0, currentEpisodesWatched - 1), maxSeasonEps)}
-                        disabled={currentEpisodesWatched <= 0}
-                        className="bg-[#101424] hover:bg-[#181e36] disabled:opacity-40 border border-slate-800 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-sm active:scale-95"
-                      >
-                        -1 Ep
-                      </button>
-                      <button
-                        onClick={() => handleUpdateEpisodes(currentSeasonNum, Math.min(maxSeasonEps, currentEpisodesWatched + 1), maxSeasonEps)}
-                        disabled={currentEpisodesWatched >= maxSeasonEps}
-                        className="bg-gradient-to-r from-violet-650 to-indigo-650 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-lg shadow-purple-600/30 active:scale-95 flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        +1 Ep Watched
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Overall & Season Progress Bars */}
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-violet-400"></span>
-                        Season {currentSeasonNum} Progress
-                      </span>
-                      <span className="text-violet-400 font-extrabold">
-                        {maxSeasonEps > 0 ? Math.round((currentEpisodesWatched / maxSeasonEps) * 100) : 0}% ({currentEpisodesWatched} / {maxSeasonEps} eps)
-                      </span>
-                    </div>
-                    <div className="w-full bg-[#101424] rounded-full h-2 overflow-hidden border border-slate-800/80">
-                      <div
-                        className="bg-gradient-to-r from-violet-500 to-indigo-400 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${maxSeasonEps > 0 ? Math.min(100, Math.round((currentEpisodesWatched / maxSeasonEps) * 100)) : 0}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                        Overall Show Progress
-                      </span>
-                      <span className="text-emerald-400 font-extrabold">
-                        {totalEpisodes > 0 ? Math.round((myTotalEpisodesWatched / totalEpisodes) * 100) : 0}% ({myTotalEpisodesWatched} / {totalEpisodes} eps)
-                      </span>
-                    </div>
-                    <div className="w-full bg-[#101424] rounded-full h-2 overflow-hidden border border-slate-800/80">
-                      <div
-                        className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
-                        style={{ width: `${totalEpisodes > 0 ? Math.min(100, Math.round((myTotalEpisodesWatched / totalEpisodes) * 100)) : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* CURRENT EPISODE & NEXT EPISODE CARDS WITH PHOTO & TITLE */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                  {/* Current Episode Card */}
-                  <div className="bg-[#101424] border border-violet-500/50 hover:border-violet-400 rounded-2xl p-4 flex flex-col justify-between gap-3 relative overflow-hidden shadow-[0_0_20px_rgba(139,92,246,0.25)] hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] transition-all duration-300 group">
-                    {/* Top Glowing Accent Stripe */}
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-indigo-500 to-purple-500" />
-                    
-                    <div className="flex items-center justify-between pt-0.5">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-violet-300 bg-violet-500/15 border border-violet-500/30 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
-                        <Eye className="w-3 h-3 text-violet-400" />
-                        Current Episode {currentEp ? `(S${currentSeasonNum} E${currentEp.episode_number})` : ''}
-                      </span>
-                      {currentEp?.vote_average > 0 && (
-                        <span className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                          {currentEp.vote_average.toFixed(1)}
-                        </span>
-                      )}
-                    </div>
-
-                    {isNotStarted ? (
-                      <div className="flex items-center gap-3 py-1">
-                        <div className="w-24 h-16 sm:w-28 sm:h-18 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex-shrink-0 flex items-center justify-center text-slate-600">
-                          <Lock className="w-6 h-6 text-slate-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-extrabold text-slate-300 leading-snug">
-                            Season {currentSeasonNum} Not Started
-                          </h4>
-                          <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed">
-                            You haven't started Season {currentSeasonNum} yet. Episode 1 is ready in Up Next!
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        <div className="w-24 h-16 sm:w-28 sm:h-18 rounded-xl overflow-hidden bg-slate-955 border border-slate-800 flex-shrink-0 relative shadow-md">
-                          {currentEp?.still_path ? (
-                            <img
-                              src={`https://image.tmdb.org/t/p/w300${currentEp.still_path}`}
-                              alt={currentEp.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                          ) : backdropUrl ? (
-                            <img
-                              src={backdropUrl}
-                              alt="Backdrop"
-                              className="w-full h-full object-cover opacity-60"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-600 bg-slate-900">
-                              <Tv className="w-6 h-6 text-slate-700" />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-extrabold text-white leading-snug line-clamp-1">
-                            {currentEp?.name || `Episode ${currentEpisodesWatched}`}
-                          </h4>
-                          <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
-                            {currentEp?.air_date && <span>{currentEp.air_date.split('-')[0]}</span>}
-                            {currentEp?.runtime && (
-                              <>
-                                <span>·</span>
-                                <span>{currentEp.runtime}m</span>
-                              </>
-                            )}
-                          </div>
-                          {currentEp?.overview && (
-                            <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">
-                              {currentEp.overview}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Next Episode Card (Up Next) */}
-                  <div className="bg-[#101424] border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between gap-3 relative overflow-hidden shadow-xl group">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
-                        <Play className="w-3 h-3 text-emerald-400" />
-                        Up Next {nextEp ? `(S${currentSeasonNum} E${nextEp.episode_number})` : ''}
-                      </span>
-                      {nextEp?.vote_average > 0 && (
-                        <span className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                          {nextEp.vote_average.toFixed(1)}
-                        </span>
-                      )}
-                    </div>
-
-                    {nextEp ? (
-                      <div className="flex items-start gap-3">
-                        <div className="w-24 h-16 sm:w-28 sm:h-18 rounded-xl overflow-hidden bg-slate-955 border border-slate-800 flex-shrink-0 relative shadow-md">
-                          {nextEp.still_path ? (
-                            <img
-                              src={`https://image.tmdb.org/t/p/w300${nextEp.still_path}`}
-                              alt={nextEp.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                          ) : backdropUrl ? (
-                            <img
-                              src={backdropUrl}
-                              alt="Backdrop"
-                              className="w-full h-full object-cover opacity-60"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-600 bg-slate-900">
-                              <Tv className="w-6 h-6 text-slate-700" />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-extrabold text-white leading-snug line-clamp-1">
-                            {nextEp.name}
-                          </h4>
-                          <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
-                            {nextEp.air_date && <span>{nextEp.air_date.split('-')[0]}</span>}
-                            {nextEp.runtime && (
-                              <>
-                                <span>·</span>
-                                <span>{nextEp.runtime}m</span>
-                              </>
-                            )}
-                          </div>
-                          {nextEp.overview && (
-                            <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">
-                              {nextEp.overview}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="py-4 text-center text-emerald-400 text-xs font-extrabold bg-emerald-500/5 rounded-xl border border-emerald-500/10 flex items-center justify-center gap-2">
-                        <Check className="w-4 h-4" />
-                        Season {currentSeasonNum} Completed! All episodes watched.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
+          {renderTvTracker('desktop')}
 
           {/* Cast */}
           <CastCarousel 
