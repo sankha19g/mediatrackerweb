@@ -58,6 +58,18 @@ const getCollectionStatusLabelAndStyle = (status) => {
   }
 }
 
+const isSeasonUnreleased = (s) => {
+  if (!s) return false
+  const epCount = s.episode_count || 0
+  if (epCount === 0) return true
+  if (s.air_date) {
+    const airDate = new Date(s.air_date)
+    const today = new Date()
+    if (airDate > today) return true
+  }
+  return false
+}
+
 const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeasonNum = 1, currentEpisodesWatched = 0 }) => {
   const scrollRef = useRef(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -164,7 +176,7 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
   const epNumLabel = currentEpisodesWatched > 0 ? currentEpisodesWatched : 1
 
   return (
-    <div className="bg-[#0a0a0a] rounded-2xl p-5 shadow-2xl relative group/cast mb-6 border border-slate-800/80">
+    <div className="relative group/cast mb-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
         {/* Dropdown / Header */}
         <div className="flex items-center gap-2">
@@ -1249,26 +1261,36 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     return [...allShowItems].sort((a, b) => (a.season_number || 1) - (b.season_number || 1))[0] || item
   })()
 
-  // Max seasons and last season episode count
-  const maxTvSeasonsNum = seasons.length > 0 ? Math.max(...seasons.map(s => s.season_number)) : 1
+  // Filter released seasons (excluding unreleased/upcoming seasons)
+  const releasedSeasons = seasons.filter(s => !isSeasonUnreleased(s))
+  const maxReleasedSeasonNum = releasedSeasons.length > 0 ? Math.max(...releasedSeasons.map(s => s.season_number)) : 1
 
-  // Check if show as a whole or any representative item is completed
-  const rawCompleted = item.status === 'completed' ||
-    (allShowItems.length > 0 && allShowItems.every(i => i.status === 'completed'))
+  // Check if all released seasons have been completed
+  const allReleasedSeasonsWatched = releasedSeasons.length > 0 && releasedSeasons.every(s => (item.seasons_watched || []).includes(s.season_number))
 
-  const isShowCompleted = rawCompleted || (seasons.length > 0 && seasons.every(s => (item.seasons_watched || []).includes(s.season_number)))
+  // A show is completed ONLY if all released seasons are completed
+  const isShowCompleted = allReleasedSeasonsWatched || (item.status === 'completed' && !releasedSeasons.some(s => !(item.seasons_watched || []).includes(s.season_number)))
 
-  // currentSeason: the TMDB season object for the active season item (or final season when completed)
+  // First uncompleted released season object (e.g. Season 3 when 1 & 2 are watched)
+  const firstUncompletedReleasedSeason = releasedSeasons.find(s => !(item.seasons_watched || []).includes(s.season_number))
+
+  // currentSeason: when completed, it's the latest released season; when active, it's the first uncompleted released season
   const currentSeason = (() => {
-    if (isShowCompleted && seasons.length > 0) {
-      return seasons.find(s => s.season_number === maxTvSeasonsNum) || seasons[seasons.length - 1]
+    if (isShowCompleted && releasedSeasons.length > 0) {
+      return releasedSeasons.find(s => s.season_number === maxReleasedSeasonNum) || releasedSeasons[releasedSeasons.length - 1]
+    }
+    if (firstUncompletedReleasedSeason) {
+      return firstUncompletedReleasedSeason
     }
     const seasonNum = activeSeasonItem?.season_number
-    if (seasonNum) return seasons.find(s => s.season_number === seasonNum) || null
-    return seasons.find(s => s.season_number === 1) || seasons[0] || null
+    if (seasonNum) {
+      const match = seasons.find(s => s.season_number === seasonNum)
+      if (match && !isSeasonUnreleased(match)) return match
+    }
+    return releasedSeasons[0] || seasons[0] || null
   })()
 
-  const currentSeasonNum = currentSeason?.season_number || activeSeasonItem?.season_number || (isShowCompleted ? maxTvSeasonsNum : 1)
+  const currentSeasonNum = currentSeason?.season_number || (isShowCompleted ? maxReleasedSeasonNum : 1)
 
   // Read actual saved season_progress count if present
   const getRawProgressCount = () => {
@@ -1286,7 +1308,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     ...(item.seasons_watched || []),
     ...allShowItems.flatMap(i => i.seasons_watched || []),
     ...allShowItems.filter(i => i.status === 'completed').map(i => i.season_number).filter(Boolean),
-    ...(isShowCompleted && seasons.length > 0 ? seasons.map(s => s.season_number) : [])
+    ...(isShowCompleted && releasedSeasons.length > 0 ? releasedSeasons.map(s => s.season_number) : [])
   ])
   const seasonsWatched = Array.from(seasonsWatchedNumbers)
   const myTotalSeasonsWatched = seasonsWatched.length
@@ -1373,17 +1395,19 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     if (item.isExplore) return
     const targetItem = activeSeasonItem || item
 
-    // All seasons from 1 up to seasonNum are marked completed automatically!
-    const completedUpToN = Array.from({ length: seasonNum }, (_, i) => i + 1)
+    // All released seasons from 1 up to seasonNum are marked completed automatically!
+    const completedUpToN = seasons
+      .filter(s => s.season_number <= seasonNum && !isSeasonUnreleased(s))
+      .map(s => s.season_number)
+
     const newSeasonsWatched = Array.from(new Set([...seasonsWatched, ...completedUpToN]))
 
-    const maxSeasonsNum = seasons.length > 0 ? Math.max(...seasons.map(s => s.season_number)) : 1
-    const isLastSeason = seasonNum >= maxSeasonsNum
+    const isLastReleasedSeason = seasonNum >= maxReleasedSeasonNum
     const nextSeasonNum = seasonNum + 1
-    const nextSeasonExists = seasons.some(s => s.season_number === nextSeasonNum)
+    const nextSeasonExists = seasons.some(s => s.season_number === nextSeasonNum && !isSeasonUnreleased(s))
 
     let updates = {}
-    if (isLastSeason || !nextSeasonExists) {
+    if (isLastReleasedSeason || !nextSeasonExists) {
       updates = {
         season_number: seasonNum,
         seasons_watched: newSeasonsWatched,
@@ -1526,7 +1550,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
             {/* Left to Right Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent z-10" />
             {/* Bottom Fade Overlay */}
-            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/60 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/85 to-transparent z-10" />
           </div>
         )}
 
@@ -1934,6 +1958,22 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   {seasons.map(s => {
                     const sNum = s.season_number
                     const totalEpsInS = s.episode_count || 1
+                    const unreleased = isSeasonUnreleased(s)
+
+                    if (unreleased) {
+                      return (
+                        <button
+                          key={sNum}
+                          disabled
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-[#0d101a] text-slate-500 border border-dashed border-slate-800/90 cursor-not-allowed opacity-75 shadow-inner"
+                          title={`Season ${sNum} - To Be Released`}
+                        >
+                          <Clock className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                          <span>Season {sNum} To Be Released</span>
+                        </button>
+                      )
+                    }
+
                     const isCompletedSeason = isShowCompleted || seasonsWatched.includes(sNum)
                     const isCurrentWatchingSeason = sNum === currentSeasonNum && !isCompletedSeason
 
@@ -2366,16 +2406,13 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
           {/* Recommended Row */}
           {recommendations.length > 0 && (
-            <div className="mt-6 border-t border-slate-900 pt-6">
+            <div className="mt-2 border-t border-slate-900/40 pt-3">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-violet-400" />
                     Recommended For You
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Explore curated recommendations based on this title.
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -2452,16 +2489,13 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
           {/* Similar Row */}
           {similar.length > 0 && (
-            <div className="mt-6 border-t border-slate-900 pt-6">
+            <div className="mt-2 border-t border-slate-900/40 pt-3">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-violet-400" />
                     Similar Titles
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Discover movies and shows sharing a similar genre or style.
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-1.5">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Search, Film, Tv, Plus, Check, Star, Calendar, Loader, ListChecks, CheckSquare, Square, X, ChevronLeft, ChevronRight, Flame, Sparkles, Trophy, TrendingUp, Info, Play, ArrowLeft, User, Building2, SlidersHorizontal, Heart } from 'lucide-react'
+import { Search, Film, Tv, Plus, Check, Star, Calendar, Loader, ListChecks, CheckSquare, Square, X, ChevronLeft, ChevronRight, Flame, Sparkles, Trophy, TrendingUp, Info, Play, ArrowLeft, User, Building2, SlidersHorizontal, Heart, Grid3x3, ChevronDown } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { fetchTMDB, getPosterUrl, isTMDBConfigured } from '../lib/tmdb'
 import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems, addFirebaseList, deleteFirebaseList } from '../lib/firebase'
@@ -152,7 +152,6 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
             <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
               {title}
             </h2>
-            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
           </div>
         </div>
 
@@ -250,6 +249,757 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+const GENRES_LIST = [
+  { id: '', name: 'All Genres' },
+  { id: '28', name: 'Action' },
+  { id: '12', name: 'Adventure' },
+  { id: '16', name: 'Animation' },
+  { id: '35', name: 'Comedy' },
+  { id: '80', name: 'Crime' },
+  { id: '99', name: 'Documentary' },
+  { id: '18', name: 'Drama' },
+  { id: '10751', name: 'Family' },
+  { id: '14', name: 'Fantasy' },
+  { id: '36', name: 'History' },
+  { id: '27', name: 'Horror' },
+  { id: '10402', name: 'Music' },
+  { id: '9648', name: 'Mystery' },
+  { id: '10749', name: 'Romance' },
+  { id: '878', name: 'Sci-Fi & Fantasy' },
+  { id: '53', name: 'Thriller' },
+  { id: '10752', name: 'War' },
+  { id: '37', name: 'Western' }
+]
+
+const PROVIDERS_LIST = [
+  { id: '', name: 'All Platforms' },
+  { id: '8', name: 'Netflix' },
+  { id: '337', name: 'Disney+' },
+  { id: '119', name: 'Amazon Prime Video' },
+  { id: '350', name: 'Apple TV+' },
+  { id: '1899', name: 'Max (HBO)' },
+  { id: '15', name: 'Hulu' },
+  { id: '531', name: 'Paramount+' }
+]
+
+const LANGUAGES_LIST = [
+  { id: '', name: 'Select language...' },
+  { id: 'en', name: 'English' },
+  { id: 'hi', name: 'Hindi' },
+  { id: 'ja', name: 'Japanese' },
+  { id: 'ko', name: 'Korean' },
+  { id: 'es', name: 'Spanish' },
+  { id: 'fr', name: 'French' },
+  { id: 'de', name: 'German' },
+  { id: 'it', name: 'Italian' },
+  { id: 'ta', name: 'Tamil' },
+  { id: 'te', name: 'Telugu' },
+  { id: 'ml', name: 'Malayalam' },
+  { id: 'zh', name: 'Chinese' }
+]
+
+const DURATION_OPTIONS = [
+  { id: 'under_30', label: 'Under 30mins' },
+  { id: '30_60', label: '30-60mins' },
+  { id: '60_120', label: '1-2hrs' },
+  { id: '120_180', label: '2-3hrs' },
+  { id: 'over_180', label: '3hrs+' }
+]
+
+const YEARS_LIST = (() => {
+  const list = []
+  const currentYear = new Date().getFullYear()
+  for (let y = currentYear; y >= 1920; y--) {
+    list.push(y.toString())
+  }
+  return list
+})()
+
+const OTT_PLATFORMS = [
+  { 
+    id: '8', 
+    providerIds: '8', 
+    name: 'Netflix', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/pbp122LfaWwRjGoxLftZlIZB3vU.jpg', 
+    activeClass: 'border-red-500/80 bg-red-950/60 text-white shadow-red-500/20' 
+  },
+  { 
+    id: '119', 
+    providerIds: '119|9|10', 
+    name: 'Prime Video', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/dQeAfi54P2jMNm1yByGmiioz2ot.jpg', 
+    activeClass: 'border-sky-500/80 bg-sky-950/60 text-white shadow-sky-500/20' 
+  },
+  { 
+    id: '122', 
+    providerIds: '337|122|2|220|390', 
+    name: 'JioHotstar', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/7rwE24K9e2k9XzSgYn1w1bZ2r2d.png', 
+    activeClass: 'border-indigo-500/80 bg-indigo-950/60 text-white shadow-indigo-500/20' 
+  },
+  { 
+    id: '283', 
+    providerIds: '283', 
+    name: 'Crunchyroll', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/mXe0Kl3K7B9sM5B0G9i2pQ5d8r.png', 
+    activeClass: 'border-orange-500/80 bg-orange-950/60 text-white shadow-orange-500/20' 
+  },
+  { 
+    id: '237', 
+    providerIds: '237', 
+    name: 'SonyLIV', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/v2Ff7L2LfaWwRjGoxLftZlIZB3vU.jpg', 
+    activeClass: 'border-amber-500/80 bg-amber-950/60 text-white shadow-amber-500/20' 
+  },
+  { 
+    id: '232', 
+    providerIds: '232', 
+    name: 'Zee5', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/1Fk5LfaWwRjGoxLftZlIZB3vU.jpg', 
+    activeClass: 'border-purple-500/80 bg-purple-950/60 text-white shadow-purple-500/20' 
+  },
+  { 
+    id: '350', 
+    providerIds: '350|2', 
+    name: 'Apple TV+', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/2E0h5RjG1f8cR9G9j1mF0h4g.png', 
+    activeClass: 'border-slate-400/80 bg-slate-800/80 text-white shadow-slate-400/20' 
+  },
+  { 
+    id: '192', 
+    providerIds: '192', 
+    name: 'YouTube', 
+    defaultLogo: 'https://image.tmdb.org/t/p/w92/v9R1sM71T2HhYhQ78Y0mN0m.png', 
+    activeClass: 'border-red-500/80 bg-red-950/60 text-white shadow-red-500/20' 
+  }
+]
+
+// Sub-component for "View All Movie/TV" page
+const ViewAllMovieTvView = ({
+  watchedItems,
+  onAddItem,
+  navigate,
+  user,
+  searchQuery = '',
+  setSearchQuery
+}) => {
+  const [mediaType, setMediaType] = useState(() => sessionStorage.getItem('mt_discover_mediaType') || 'all') // 'all' | 'movie' | 'tv'
+  const [sortBy, setSortBy] = useState(() => sessionStorage.getItem('mt_discover_sortBy') || 'trending') // 'trending' | 'top_rated' | 'revenue'
+  const [selectedGenre, setSelectedGenre] = useState(() => sessionStorage.getItem('mt_discover_selectedGenre') || '')
+  const [selectedProvider, setSelectedProvider] = useState(() => sessionStorage.getItem('mt_discover_selectedProvider') || '')
+  const [selectedLanguage, setSelectedLanguage] = useState(() => sessionStorage.getItem('mt_discover_selectedLanguage') || '')
+  const [selectedDuration, setSelectedDuration] = useState(() => sessionStorage.getItem('mt_discover_selectedDuration') || '')
+  const [selectedYear, setSelectedYear] = useState(() => sessionStorage.getItem('mt_discover_selectedYear') || '')
+  const [localSearch, setLocalSearch] = useState(searchQuery || '')
+  const [page, setPage] = useState(() => {
+    const cached = sessionStorage.getItem('mt_discover_page')
+    return cached ? parseInt(cached, 10) : 1
+  })
+  const [items, setItems] = useState([])
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(true)
+
+  // Persist filter states to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_mediaType', mediaType)
+  }, [mediaType])
+  
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_sortBy', sortBy)
+  }, [sortBy])
+
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_selectedGenre', selectedGenre)
+  }, [selectedGenre])
+
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_selectedProvider', selectedProvider)
+  }, [selectedProvider])
+
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_selectedLanguage', selectedLanguage)
+  }, [selectedLanguage])
+
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_selectedDuration', selectedDuration)
+  }, [selectedDuration])
+
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_selectedYear', selectedYear)
+  }, [selectedYear])
+
+  useEffect(() => {
+    sessionStorage.setItem('mt_discover_page', page.toString())
+  }, [page])
+
+  useEffect(() => {
+    if (searchQuery !== undefined) {
+      setLocalSearch(searchQuery)
+    }
+  }, [searchQuery])
+
+  // Prevent resetting page to 1 on initial mount when reading cached page
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    setPage(1)
+  }, [mediaType, sortBy, selectedGenre, selectedProvider, selectedLanguage, selectedDuration, selectedYear, localSearch])
+
+  useEffect(() => {
+    let active = true
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const queryTerm = localSearch.trim()
+
+        // ── SEARCH MODE ──────────────────────────────────────────────────────
+        if (queryTerm.length >= 2) {
+          const endpoint = mediaType === 'movie' ? '/search/movie'
+            : mediaType === 'tv' ? '/search/tv'
+            : '/search/multi'
+          const data = await fetchTMDB(endpoint, { query: queryTerm, page })
+          if (!active) return
+          const raw = (data.results || [])
+            .filter(i => i.poster_path || i.title || i.name)
+            .map(i => ({ ...i, media_type: i.media_type || (i.title ? 'movie' : 'tv') }))
+            .filter(i => i.media_type === 'movie' || i.media_type === 'tv')
+          setItems(raw)
+          setTotalPages(Math.min(data.total_pages || 1, 500))
+          return
+        }
+
+        const hasFilters = selectedGenre || selectedProvider || selectedLanguage
+          || selectedDuration || selectedYear
+
+        // ── CURATED TMDB LISTS (no filters) ──────────────────────────────────
+        if (!hasFilters) {
+          if (sortBy === 'trending') {
+            const ep = mediaType === 'movie' ? '/trending/movie/week'
+              : mediaType === 'tv' ? '/trending/tv/week'
+              : '/trending/all/week'
+            const data = await fetchTMDB(ep, { page })
+            if (!active) return
+            const raw = (data.results || [])
+              .map(i => ({ ...i, media_type: i.media_type || (i.title ? 'movie' : 'tv') }))
+              .filter(i => i.media_type === 'movie' || i.media_type === 'tv')
+            setItems(raw)
+            setTotalPages(Math.min(data.total_pages || 1, 500))
+            return
+          }
+          if (sortBy === 'top_rated') {
+            const epM = '/movie/top_rated', epT = '/tv/top_rated'
+            if (mediaType === 'movie') {
+              const d = await fetchTMDB(epM, { page })
+              if (!active) return
+              setItems((d.results || []).map(i => ({ ...i, media_type: 'movie' })))
+              setTotalPages(Math.min(d.total_pages || 1, 500))
+              return
+            } else if (mediaType === 'tv') {
+              const d = await fetchTMDB(epT, { page })
+              if (!active) return
+              setItems((d.results || []).map(i => ({ ...i, media_type: 'tv' })))
+              setTotalPages(Math.min(d.total_pages || 1, 500))
+              return
+            } else {
+              const [mD, tD] = await Promise.all([fetchTMDB(epM, { page }), fetchTMDB(epT, { page })])
+              if (!active) return
+              const combined = [
+                ...(mD.results || []).map(i => ({ ...i, media_type: 'movie' })),
+                ...(tD.results || []).map(i => ({ ...i, media_type: 'tv' }))
+              ].sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
+              setItems(combined)
+              setTotalPages(Math.min(Math.max(mD.total_pages || 1, tD.total_pages || 1), 500))
+              return
+            }
+          }
+          if (sortBy === 'revenue') {
+            // Curated highest grossing movies (movies only)
+            const ep = '/discover/movie'
+            const d = await fetchTMDB(ep, { page, sort_by: 'revenue.desc', 'vote_count.gte': 100 })
+            if (!active) return
+            setItems((d.results || []).map(i => ({ ...i, media_type: 'movie' })))
+            setTotalPages(Math.min(d.total_pages || 1, 500))
+            return
+          }
+        }
+
+        // ── DISCOVER MODE (with filters) ──────────────────────────────────────
+        // Compute sort_by param
+        let sortParamM = 'popularity.desc'
+        let sortParamT = 'popularity.desc'
+
+        if (sortBy === 'top_rated') {
+          sortParamM = 'vote_average.desc'
+          sortParamT = 'vote_average.desc'
+        } else if (sortBy === 'revenue') {
+          sortParamM = 'revenue.desc'
+          sortParamT = 'popularity.desc'
+        }
+
+        const region = (selectedProvider && (selectedProvider.includes('350') || selectedProvider.includes('192'))) ? 'US' : 'IN'
+
+        const buildParams = (isMovie) => {
+          const p = {
+            page,
+            sort_by: isMovie ? sortParamM : sortParamT,
+            watch_region: region
+          }
+          if (selectedGenre) p.with_genres = selectedGenre
+          if (selectedProvider) p.with_watch_providers = selectedProvider
+          if (selectedLanguage) p.with_original_language = selectedLanguage
+          if (sortBy === 'top_rated') {
+            p['vote_count.gte'] = isMovie ? 500 : 200
+          }
+          if (selectedYear) {
+            if (isMovie) p.primary_release_year = selectedYear
+            else p.first_air_date_year = selectedYear
+          }
+          // Duration
+          const durMap = {
+            under_30: { lte: 30 }, '30_60': { gte: 30, lte: 60 },
+            '60_120': { gte: 60, lte: 120 }, '120_180': { gte: 120, lte: 180 },
+            over_180: { gte: 180 }
+          }
+          if (selectedDuration && durMap[selectedDuration]) {
+            const d = durMap[selectedDuration]
+            if (d.gte) p['with_runtime.gte'] = d.gte
+            if (d.lte) p['with_runtime.lte'] = d.lte
+          }
+          return p
+        }
+
+        const fetchDiscover = async (endpoint, params) => {
+          let res = await fetchTMDB(endpoint, params)
+          let results = res.results || []
+          let totalPages = res.total_pages || 1
+          // Fallback for OTT providers with few results
+          if (results.length < 10 && params.with_watch_providers) {
+            const alt = { ...params }; delete alt.watch_region
+            const altRes = await fetchTMDB(endpoint, alt)
+            const ids = new Set(results.map(r => r.id))
+            ;(altRes.results || []).forEach(item => {
+              if (!ids.has(item.id)) { results.push(item); ids.add(item.id) }
+            })
+            totalPages = Math.max(totalPages, altRes.total_pages || 1)
+          }
+          return { results, total_pages: totalPages }
+        }
+
+        // Sort combined results
+        const sortCombined = (arr) => {
+          if (sortBy === 'top_rated') return arr.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
+          if (sortBy === 'revenue') return arr.sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+          return arr.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+        }
+
+        if (mediaType === 'movie') {
+          const data = await fetchDiscover('/discover/movie', buildParams(true))
+          if (!active) return
+          setItems((data.results || []).map(i => ({ ...i, media_type: 'movie' })))
+          setTotalPages(Math.min(data.total_pages || 1, 500))
+        } else if (mediaType === 'tv') {
+          const data = await fetchDiscover('/discover/tv', buildParams(false))
+          if (!active) return
+          setItems((data.results || []).map(i => ({ ...i, media_type: 'tv' })))
+          setTotalPages(Math.min(data.total_pages || 1, 500))
+        } else {
+          const [mRes, tRes] = await Promise.all([
+            fetchDiscover('/discover/movie', buildParams(true)),
+            fetchDiscover('/discover/tv', buildParams(false))
+          ])
+          if (!active) return
+          const combined = sortCombined([
+            ...(mRes.results || []).map(i => ({ ...i, media_type: 'movie' })),
+            ...(tRes.results || []).map(i => ({ ...i, media_type: 'tv' }))
+          ])
+          setItems(combined)
+          setTotalPages(Math.min(Math.max(mRes.total_pages || 1, tRes.total_pages || 1), 500))
+        }
+
+      } catch (err) {
+        console.error('Failed to fetch discover items:', err)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    loadData()
+    return () => { active = false }
+  }, [mediaType, sortBy, selectedGenre, selectedProvider, selectedLanguage, selectedDuration, selectedYear, localSearch, page])
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const params = new URLSearchParams(window.location.search)
+              params.delete('view')
+              const qs = params.toString()
+              navigate(`/explore_tmdb${qs ? `?${qs}` : ''}`)
+            }}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all cursor-pointer shadow-md"
+            title="Back to Explore Feed"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
+              <Grid3x3 className="w-6 h-6 text-violet-400" />
+              Discover
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Browse, search, and filter all trending & discoverable titles from TMDB.
+            </p>
+          </div>
+        </div>
+
+        <div className="text-xs font-bold text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+          Page {page} of {totalPages}
+        </div>
+      </div>
+
+      {/* 2-Column Responsive Layout: Left Filters + Right Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN: FILTERS & SEARCH */}
+        <div className="lg:col-span-3 bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-5 sticky top-20">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-violet-400" />
+              Filter & Search
+            </h3>
+            {(localSearch || selectedGenre || selectedProvider || selectedLanguage || selectedDuration || selectedYear || sortBy !== 'trending' || mediaType !== 'all') && (
+              <button
+                onClick={() => {
+                  setLocalSearch('')
+                  if (setSearchQuery) setSearchQuery('')
+                  setMediaType('all')
+                  setSortBy('trending')
+                  setSelectedGenre('')
+                  setSelectedProvider('')
+                  setSelectedLanguage('')
+                  setSelectedDuration('')
+                  setSelectedYear('')
+                }}
+                className="text-[11px] font-bold text-violet-400 hover:underline cursor-pointer"
+              >
+                Reset All
+              </button>
+            )}
+          </div>
+
+          {/* 1. Top Search Bar */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Search Titles
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={localSearch}
+                onChange={(e) => {
+                  setLocalSearch(e.target.value)
+                  if (setSearchQuery) setSearchQuery(e.target.value)
+                }}
+                placeholder="Search movies, tv..."
+                className="w-full bg-[#101424] border border-slate-800 focus:border-violet-500 text-white text-xs rounded-xl pl-9 pr-8 py-2 focus:outline-none transition-all"
+              />
+              {localSearch && (
+                <button
+                  onClick={() => {
+                    setLocalSearch('')
+                    if (setSearchQuery) setSearchQuery('')
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 2. TV / Movie / All Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Category Type
+            </label>
+            <div className="grid grid-cols-3 gap-1.5 bg-[#101424] p-1 border border-slate-800 rounded-xl">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'movie', label: 'Movies' },
+                { id: 'tv', label: 'TV Shows' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setMediaType(t.id)}
+                  className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer text-center ${
+                    mediaType === t.id
+                      ? 'bg-violet-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Sort Options Dropdown */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Sort By
+            </label>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full bg-[#101424] border border-slate-800 text-white text-xs font-semibold py-2 px-3 pr-8 rounded-xl appearance-none cursor-pointer focus:outline-none focus:border-violet-500 transition-all"
+              >
+                <option value="trending">🔥 Trending</option>
+                <option value="top_rated">🏆 Top Rated</option>
+                <option value="revenue">💰 Top Grossing (Movies)</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-violet-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* 3.5 Release Year Dropdown */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+              Release Year
+            </label>
+            <div className="relative">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="w-full bg-[#101424] border border-slate-800 text-white text-xs font-semibold py-2.5 px-3 pr-8 rounded-xl appearance-none cursor-pointer focus:outline-none focus:border-violet-500 transition-all"
+              >
+                <option value="">📅 All Years</option>
+                {YEARS_LIST.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* 4. Genre Dropdown */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Genre
+            </label>
+            <div className="relative">
+              <select
+                value={selectedGenre}
+                onChange={(e) => setSelectedGenre(e.target.value)}
+                className="w-full bg-[#101424] border border-slate-800 text-white text-xs font-semibold py-2 px-3 pr-8 rounded-xl appearance-none cursor-pointer focus:outline-none focus:border-violet-500 transition-all"
+              >
+                {GENRES_LIST.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-violet-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* 5. LANGUAGE */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+              Language
+            </label>
+            <div className="relative">
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full bg-[#101424] border border-slate-800 text-white text-xs font-semibold py-2.5 px-3 pr-8 rounded-xl appearance-none cursor-pointer focus:outline-none focus:border-violet-500 transition-all"
+              >
+                {LANGUAGES_LIST.map(l => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* 6. DURATION */}
+          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+              Duration
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {DURATION_OPTIONS.map(d => {
+                const isActive = selectedDuration === d.id
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => setSelectedDuration(isActive ? '' : d.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-violet-600/30 border-violet-500 text-violet-200 font-bold shadow-sm'
+                        : 'bg-[#101424] border-slate-800/90 text-slate-300 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+
+
+          {/* 8. OTT PLATFORMS GRID */}
+          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+              OTT
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {OTT_PLATFORMS.map(ott => {
+                const isActive = selectedProvider === ott.providerIds
+                return (
+                  <button
+                    key={ott.id}
+                    onClick={() => setSelectedProvider(isActive ? '' : ott.providerIds)}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      isActive
+                        ? ott.activeClass
+                        : 'bg-[#101424] border-slate-800/90 text-slate-300 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-md overflow-hidden bg-slate-900 flex-shrink-0 flex items-center justify-center border border-slate-700/50">
+                      <img
+                        src={ott.defaultLogo}
+                        alt={ott.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <span className="truncate">{ott.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: MOVIES & TV SHOWS GRID */}
+        <div className="lg:col-span-9 space-y-6">
+          {loading ? (
+            <div className="h-96 flex items-center justify-center text-slate-500 text-sm font-semibold animate-pulse gap-2">
+              <Loader className="w-5 h-5 text-violet-400 animate-spin" />
+              Fetching items from TMDB...
+            </div>
+          ) : items.length === 0 ? (
+            <div className="h-64 flex flex-col items-center justify-center text-slate-500 text-sm italic bg-[#0a0a0a] border border-slate-800 rounded-2xl p-8 text-center space-y-2">
+              <Film className="w-8 h-8 text-slate-700 mb-1" />
+              <p>No movies or TV shows found matching your active filters.</p>
+              <button
+                onClick={() => {
+                  setLocalSearch('')
+                  if (setSearchQuery) setSearchQuery('')
+                  setMediaType('all')
+                  setSortBy('trending')
+                  setSelectedGenre('')
+                  setSelectedProvider('')
+                }}
+                className="text-xs text-violet-400 hover:underline font-bold not-italic"
+              >
+                Clear all filters
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {items.map(item => {
+                  const mType = item.media_type || (item.title ? 'movie' : 'tv')
+                  const isMovie = mType === 'movie'
+                  const titleStr = isMovie ? item.title : item.name
+                  const releaseDate = isMovie ? item.release_date : item.first_air_date
+                  const watched = watchedItems.find(wi => wi.type === mType && wi.tmdb_id === item.id.toString() && wi.status !== 'list_only')
+
+                  return (
+                    <div
+                      key={`${mType}_${item.id}`}
+                      onClick={() => navigate(`/explore/${mType}/${item.id}`)}
+                      className="bg-[#0a0a0a] border border-slate-800 hover:border-violet-500/50 rounded-2xl overflow-hidden flex flex-col shadow-lg transition-all duration-300 hover:-translate-y-1 group/card cursor-pointer relative"
+                    >
+                      <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
+                        {item.poster_path ? (
+                          <img
+                            src={getPosterUrl(item.poster_path)}
+                            alt={titleStr}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-600 bg-slate-900 font-bold text-xs p-2 text-center">
+                            {titleStr}
+                          </div>
+                        )}
+
+                        {/* Watched Status Badge */}
+                        {watched && (
+                          <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1 px-2 flex items-center justify-center gap-1 ${getStatusLabelAndStyle(watched.status).containerStyle}`}>
+                            <Check className={`w-3.5 h-3.5 ${getStatusLabelAndStyle(watched.status).iconColor}`} />
+                            <span>{getStatusLabelAndStyle(watched.status).label}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Pagination Row */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 pt-6">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => {
+                      setPage(prev => Math.max(1, prev - 1))
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      page === 1
+                        ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
+                        : 'bg-[#101424] hover:bg-[#181e36] border-slate-800 text-slate-300 hover:text-white active:scale-95'
+                    }`}
+                  >
+                    Previous
+                  </button>
+
+                  <span className="text-xs font-bold text-slate-400">
+                    Page <span className="text-white">{page}</span> of <span className="text-white">{totalPages}</span>
+                  </span>
+
+                  <button
+                    disabled={page >= totalPages}
+                    onClick={() => {
+                      setPage(prev => Math.min(totalPages, prev + 1))
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      page >= totalPages
+                        ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
+                        : 'bg-[#101424] hover:bg-[#181e36] border-slate-800 text-slate-300 hover:text-white active:scale-95'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -836,22 +1586,6 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
                       fadeWatched && watched ? 'opacity-30 grayscale-[30%] brightness-[60%] hover:opacity-100 hover:grayscale-0 hover:brightness-100' : ''
                     }`}
                   >
-                    {/* Media Type & Rating Badges */}
-                    <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1">
-                      <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md backdrop-blur-md border ${
-                        isMovie ? 'bg-sky-500/80 text-white border-sky-400/30' : 'bg-indigo-500/80 text-white border-indigo-400/30'
-                      }`}>
-                        {isMovie ? 'Movie' : 'TV'}
-                      </span>
-                    </div>
-
-                    <div className="absolute top-2.5 right-2.5 z-10">
-                      <span className="text-[10px] font-bold bg-slate-950/80 backdrop-blur-md text-amber-400 px-2 py-0.5 rounded-md border border-amber-400/20 flex items-center gap-1 shadow-md">
-                        <Star className="w-3 h-3 fill-amber-400" />
-                        {(item.vote_average || 0).toFixed(1)}
-                      </span>
-                    </div>
-
                     {/* Poster Image */}
                     <div
                       className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
@@ -1020,8 +1754,8 @@ export default function ExploreTMDB({
   
   // Curated Explore Rows Data
   const [trending, setTrending] = useState([])
-  const [popularMovies, setPopularMovies] = useState([])
-  const [popularTV, setPopularTV] = useState([])
+  const [onAirTV, setOnAirTV] = useState([])
+  const [trendingIndian, setTrendingIndian] = useState([])
   const [topMovies, setTopMovies] = useState([])
   const [topTV, setTopTV] = useState([])
   
@@ -1098,17 +1832,18 @@ export default function ExploreTMDB({
       setLoadingFeed(true)
       setError('')
       try {
-        const [trRes, popMRes, popTVRes, topMRes, topTVRes] = await Promise.all([
+        const [trRes, onAirTVRes, indMovieRes, topMRes, topTVRes] = await Promise.all([
           fetchTMDB('/trending/all/week'),
-          fetchTMDB('/movie/popular'),
-          fetchTMDB('/tv/popular'),
+          fetchTMDB('/tv/on_the_air'),
+          fetchTMDB('/discover/movie', { with_origin_country: 'IN', sort_by: 'popularity.desc' }),
           fetchTMDB('/movie/top_rated'),
           fetchTMDB('/tv/top_rated')
         ])
 
         setTrending((trRes.results || []).filter(i => i.poster_path))
-        setPopularMovies((popMRes.results || []).map(i => ({ ...i, media_type: 'movie' })).filter(i => i.poster_path))
-        setPopularTV((popTVRes.results || []).map(i => ({ ...i, media_type: 'tv' })).filter(i => i.poster_path))
+        setOnAirTV((onAirTVRes.results || []).map(i => ({ ...i, media_type: 'tv' })).filter(i => i.poster_path))
+        setTrendingIndian((indMovieRes.results || []).map(i => ({ ...i, media_type: 'movie' })).filter(i => i.poster_path))
+
         setTopMovies((topMRes.results || []).map(i => ({ ...i, media_type: 'movie' })).filter(i => i.poster_path))
         setTopTV((topTVRes.results || []).map(i => ({ ...i, media_type: 'tv' })).filter(i => i.poster_path))
       } catch (err) {
@@ -1456,6 +2191,8 @@ export default function ExploreTMDB({
     )
   }
 
+  const isViewAll = new URLSearchParams(location.search).get('view') === 'all'
+
   return (
     <div className="animate-fade-in pb-16">
       {activeDetail ? (
@@ -1473,6 +2210,15 @@ export default function ExploreTMDB({
           onAddItem={onAddItem}
           navigate={navigate}
           user={user}
+        />
+      ) : isViewAll ? (
+        <ViewAllMovieTvView
+          watchedItems={watchedItems}
+          onAddItem={onAddItem}
+          navigate={navigate}
+          user={user}
+          searchQuery={query}
+          setSearchQuery={setQuery}
         />
       ) : (
         <>
@@ -1772,12 +2518,12 @@ export default function ExploreTMDB({
                 setSelectedItems={setSelectedItems}
               />
 
-              {/* Row 2: Popular Movies */}
+              {/* Row 2: On Air TV Shows */}
               <CategoryRow
-                title="Popular Movies"
-                subtitle="Most watched movies around the globe"
-                icon={Film}
-                items={popularMovies}
+                title="On Air TV Shows"
+                subtitle="TV series currently airing episodes this week"
+                icon={Tv}
+                items={onAirTV}
                 watchedItems={watchedItems}
                 openAddDialog={openAddDialog}
                 navigate={navigate}
@@ -1786,12 +2532,12 @@ export default function ExploreTMDB({
                 setSelectedItems={setSelectedItems}
               />
 
-              {/* Row 3: Popular TV Shows */}
+              {/* Row 3: Trending Indian Movies */}
               <CategoryRow
-                title="Popular TV Shows"
-                subtitle="Binge-worthy shows trending globally"
-                icon={Tv}
-                items={popularTV}
+                title="Trending Indian Movies"
+                subtitle="Top trending movies in India"
+                icon={Sparkles}
+                items={trendingIndian}
                 watchedItems={watchedItems}
                 openAddDialog={openAddDialog}
                 navigate={navigate}

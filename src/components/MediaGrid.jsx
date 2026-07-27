@@ -136,9 +136,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
   // Auto-fill missing original_language and country for existing items with tmdb_id
   useEffect(() => {
-    const itemsToHeal = items.filter(item => 
+    const itemsToHeal = items.filter(item =>
       item.tmdb_id && (
-        !item.original_language || item.original_language === '' || 
+        !item.original_language || item.original_language === '' ||
         !item.country || item.country === ''
       )
     )
@@ -154,14 +154,14 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           const details = await fetchTMDB(endpoint)
           if (details && isMounted) {
             const updates = {}
-            
+
             // Resolve language if missing
             if (!item.original_language || item.original_language === '') {
               if (details.original_language) {
                 updates.original_language = details.original_language
               }
             }
-            
+
             // Resolve country if missing
             if (!item.country || item.country === '') {
               let resolvedCountry = 'Unknown'
@@ -190,7 +190,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     healMetadata()
     return () => { isMounted = false }
   }, [items, onUpdateItem])
-  
+
   // Multi-Select Mode States
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
@@ -239,7 +239,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   // Get all unique original languages from items of active type + popular defaults
   const availableLanguagesMap = new Map()
   const COMMON_LANG_CODES = ['en', 'hi', 'ta', 'te', 'ml', 'kn', 'mr', 'bn', 'ja', 'ko', 'es', 'fr', 'de']
-  
+
   items
     .filter(item => item.type === typeFilter)
     .forEach(item => {
@@ -303,10 +303,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
       const sorted = [...seasons].sort((a, b) => (a.season_number || 1) - (b.season_number || 1))
       const rep = sorted.reduce((a, b) =>
         new Date(b.watched_at || b.created_at || 0) > new Date(a.watched_at || a.created_at || 0) ? b : a
-      , sorted[0])
+        , sorted[0])
       const completedSeasons = sorted.filter(s => s.status === 'completed')
-      const watchingSeasons  = sorted.filter(s => s.status === 'watching' || s.status === 'pending')
-      const totalSeasons     = sorted.length
+      const watchingSeasons = sorted.filter(s => s.status === 'watching' || s.status === 'pending')
+      const totalSeasons = sorted.length
       const activeSeason = watchingSeasons[0] || sorted.find(s => s.status !== 'completed') || sorted[sorted.length - 1]
 
       const getEpProgress = (s) => {
@@ -319,7 +319,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
       const rawEpProgress = getEpProgress(activeSeason)
       const activeEpisodeProgress = (activeSeason?.status === 'watching' && rawEpProgress === 0) ? 1 : rawEpProgress
       const pct = totalSeasons > 0 ? Math.round((completedSeasons.length / totalSeasons) * 100) : 0
-      
+
       let showStatus = rep.status || 'planned'
       if (completedSeasons.length === totalSeasons && totalSeasons > 0) {
         showStatus = 'completed'
@@ -363,21 +363,21 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
   const filteredItems = typeFilter === 'tv'
     ? groupedTVShows
-        .filter(show => statusFilter === 'all' || show.virtualStatus === statusFilter)
-        .filter(show => yearFilter === 'all' || show.release_year === yearFilter)
-        .filter(show => matchLanguage(show.original_language, languageFilter))
-        .filter(show => matchCountry(show.country, countryFilter))
-        .filter(show => !hideIndian || normalizeCountryName(show.country) !== 'India')
-        .filter(show => show.title.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(show => statusFilter === 'all' || show.virtualStatus === statusFilter)
+      .filter(show => yearFilter === 'all' || show.release_year === yearFilter)
+      .filter(show => matchLanguage(show.original_language, languageFilter))
+      .filter(show => matchCountry(show.country, countryFilter))
+      .filter(show => !hideIndian || normalizeCountryName(show.country) !== 'India')
+      .filter(show => show.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : items
-        .filter(item => item.type === typeFilter && item.status !== 'list_only')
-        .map(item => ({ ...item, virtualStatus: item.status || 'planned' }))
-        .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
-        .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
-        .filter(item => matchLanguage(item.original_language, languageFilter))
-        .filter(item => matchCountry(item.country, countryFilter))
-        .filter(item => !hideIndian || normalizeCountryName(item.country) !== 'India')
-        .filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(item => item.type === typeFilter && item.status !== 'list_only')
+      .map(item => ({ ...item, virtualStatus: item.status || 'planned' }))
+      .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
+      .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
+      .filter(item => matchLanguage(item.original_language, languageFilter))
+      .filter(item => matchCountry(item.country, countryFilter))
+      .filter(item => !hideIndian || normalizeCountryName(item.country) !== 'India')
+      .filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
   // Sort items
   const sortedItems = [...filteredItems].sort((a, b) => {
@@ -470,17 +470,17 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
         const localListsRaw = localStorage.getItem('local_custom_lists')
         if (localListsRaw) {
           const parsed = JSON.parse(localListsRaw)
-          const updated = parsed.map(list => 
+          const updated = parsed.map(list =>
             list.id === listId ? { ...list, item_ids: updatedIds } : list
           )
           localStorage.setItem('local_custom_lists', JSON.stringify(updated))
         }
       }
 
-      setLists(prev => prev.map(list => 
+      setLists(prev => prev.map(list =>
         list.id === listId ? { ...list, item_ids: updatedIds } : list
       ))
-      
+
       alert(`Successfully added ${selectedIds.length} items to "${targetList.name}"!`)
       setSelectedIds([])
       setIsSelectMode(false)
@@ -499,14 +499,14 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
     setIsSyncing(true)
     setSyncProgress(0)
-    
+
     let syncedCount = 0
     let skippedCount = 0
 
     for (let idx = 0; idx < selectedIds.length; idx++) {
       const id = selectedIds[idx]
       const item = items.find(i => i.id === id)
-      
+
       if (!item || item.type === 'game') {
         skippedCount++
         setSyncProgress(Math.round(((idx + 1) / selectedIds.length) * 100))
@@ -525,12 +525,12 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
 
         const endpoint = item.type === 'movie' ? '/search/movie' : '/search/tv'
         const searchResults = await fetchTMDB(endpoint, queryParams)
-        
+
         if (searchResults.results && searchResults.results.length > 0) {
           const match = searchResults.results[0]
           const releaseDate = item.type === 'movie' ? match.release_date : match.first_air_date
           const releaseYear = releaseDate ? releaseDate.split('-')[0] : item.release_year
-          
+
           await onUpdateItem(id, {
             tmdb_id: match.id.toString(),
             title: item.type === 'movie' ? match.title : match.name,
@@ -647,11 +647,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 <button
                   key={tab.id}
                   onClick={() => setListsSubTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
-                    listsSubTab === tab.id
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${listsSubTab === tab.id
                       ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -711,11 +710,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 <button
                   key={tab.id}
                   onClick={() => setStatusFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
-                    statusFilter === tab.id
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${statusFilter === tab.id
                       ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -757,11 +755,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           <div className="relative flex-shrink-0">
             <button
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              className={`flex items-center justify-center w-8 h-8 rounded-none border text-xs font-semibold cursor-pointer transition-all ${
-                showFilterDropdown
+              className={`flex items-center justify-center w-8 h-8 rounded-none border text-xs font-semibold cursor-pointer transition-all ${showFilterDropdown
                   ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-              }`}
+                }`}
               title="Filter & Sort"
             >
               <Filter className="w-3.5 h-3.5" />
@@ -864,11 +861,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
               setIsSelectMode(!isSelectMode)
               setSelectedIds([])
             }}
-            className={`flex items-center justify-center w-8 h-8 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${
-              isSelectMode
+            className={`flex items-center justify-center w-8 h-8 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${isSelectMode
                 ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
                 : 'bg-slate-900 border-slate-800 text-slate-450 hover:text-slate-200 hover:border-slate-700'
-            }`}
+              }`}
             title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
           >
             <ListChecks className="w-4 h-4" />
@@ -890,11 +886,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           <button
             key={tab.id}
             onClick={() => setStatusFilter(tab.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
-              statusFilter === tab.id
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${statusFilter === tab.id
                 ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
                 : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-            }`}
+              }`}
           >
             {tab.label}
           </button>
@@ -910,78 +905,77 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
               // for multi-select we match on the representative id
               const cardId = item.id
               const isTV = item.type === 'tv'
-              const activeSeason    = item._activeSeason
-              const pct             = item._pct ?? 0
-              const completedSeas   = item._completedSeasons ?? 0
-              const remainingSeas   = item._remainingSeasons ?? 0
-              const totalSeas       = item._totalSeasons ?? 0
+              const activeSeason = item._activeSeason
+              const pct = item._pct ?? 0
+              const completedSeas = item._completedSeasons ?? 0
+              const remainingSeas = item._remainingSeasons ?? 0
+              const totalSeas = item._totalSeasons ?? 0
               const activeSeasonNum = activeSeason?.season_number ?? item.season_number ?? null
 
               // For TV groups, navigate via the ACTIVE (in-progress) season item
               const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
 
               return (
-              <div 
-                key={cardId}
-                className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${
-                  isSelectMode && selectedIds.includes(cardId)
-                    ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
-                    : 'border-slate-800 hover:border-slate-700/50'
-                }`}
-              >
-                {/* Card Image */}
-                <div 
-                  className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                  onClick={() => {
-                    if (isSelectMode) {
-                      setSelectedIds(prev => 
-                        prev.includes(cardId) 
-                          ? prev.filter(id => id !== cardId) 
-                          : [...prev, cardId]
-                      )
-                    } else {
-                      onItemClick && onItemClick(navItem)
-                    }
-                  }}
+                <div
+                  key={cardId}
+                  className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${isSelectMode && selectedIds.includes(cardId)
+                      ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
+                      : 'border-slate-800 hover:border-slate-700/50'
+                    }`}
                 >
-                  <img
-                    src={getPosterUrl(item.poster_path)}
-                    alt={item.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                  />
+                  {/* Card Image */}
+                  <div
+                    className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
+                    onClick={() => {
+                      if (isSelectMode) {
+                        setSelectedIds(prev =>
+                          prev.includes(cardId)
+                            ? prev.filter(id => id !== cardId)
+                            : [...prev, cardId]
+                        )
+                      } else {
+                        onItemClick && onItemClick(navItem)
+                      }
+                    }}
+                  >
+                    <img
+                      src={getPosterUrl(item.poster_path)}
+                      alt={item.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
 
-                  {/* Multi-select check icon */}
-                  {isSelectMode && (
-                    <div className="absolute top-2 right-2 z-20">
-                      {selectedIds.includes(cardId) ? (
-                        <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
-                          <Check className="w-3.5 h-3.5 font-bold" />
-                        </div>
-                      ) : (
-                        <div className="bg-slate-950/80 border border-slate-750 text-slate-450 p-1.5 rounded-lg shadow-lg">
-                          <div className="w-3 h-3 rounded-sm border border-slate-500" />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {/* Multi-select check icon */}
+                    {isSelectMode && (
+                      <div className="absolute top-2 right-2 z-20">
+                        {selectedIds.includes(cardId) ? (
+                          <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
+                            <Check className="w-3.5 h-3.5 font-bold" />
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/80 border border-slate-750 text-slate-450 p-1.5 rounded-lg shadow-lg">
+                            <div className="w-3 h-3 rounded-sm border border-slate-500" />
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Status Overlay at the bottom */}
-                  {!isSelectMode && (
-                    <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1.5 px-2 flex items-center justify-center gap-1 ${getStatusOverlayStyle(item.virtualStatus).containerStyle}`}>
-                      <Check className={`w-3.5 h-3.5 ${getStatusOverlayStyle(item.virtualStatus).iconColor}`} />
-                      <span>{getStatusLabel(item.virtualStatus)}</span>
-                    </div>
-                  )}
+                    {/* Status Overlay at the bottom */}
+                    {!isSelectMode && (
+                      <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1.5 px-2 flex items-center justify-center gap-1 ${getStatusOverlayStyle(item.virtualStatus).containerStyle}`}>
+                        <Check className={`w-3.5 h-3.5 ${getStatusOverlayStyle(item.virtualStatus).iconColor}`} />
+                        <span>{getStatusLabel(item.virtualStatus)}</span>
+                      </div>
+                    )}
 
-                  {/* TV: total seasons badge top-right (non-select mode) */}
-                  {isTV && !isSelectMode && totalSeas > 1 && (
-                    <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
-                      {totalSeas}S
-                    </div>
-                  )}
+                    {/* TV: total seasons badge top-right (non-select mode) */}
+                    {isTV && !isSelectMode && totalSeas > 1 && (
+                      <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
+                        {totalSeas}S
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
               )
             })}
           </div>
@@ -991,11 +985,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
               <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                className={`px-4 py-2 border text-xs font-semibold transition-all cursor-pointer ${
-                  currentPage === 1
+                className={`px-4 py-2 border text-xs font-semibold transition-all cursor-pointer ${currentPage === 1
                     ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
                     : 'bg-slate-900 border-slate-800 text-slate-450 hover:text-slate-200 hover:border-slate-700 active:scale-95'
-                }`}
+                  }`}
               >
                 Previous
               </button>
@@ -1005,11 +998,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                className={`px-4 py-2 border text-xs font-semibold transition-all cursor-pointer ${
-                  currentPage === totalPages
+                className={`px-4 py-2 border text-xs font-semibold transition-all cursor-pointer ${currentPage === totalPages
                     ? 'bg-slate-900/40 border-slate-950 text-slate-600 cursor-not-allowed opacity-50'
                     : 'bg-slate-900 border-slate-800 text-slate-450 hover:text-slate-200 hover:border-slate-700 active:scale-95'
-                }`}
+                  }`}
               >
                 Next
               </button>
@@ -1022,8 +1014,8 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
           <Filter className="w-12 h-12 text-slate-700 mx-auto mb-3" />
           <h3 className="font-bold text-slate-400 mb-1">No items found</h3>
           <p className="text-sm text-slate-500">
-            {searchQuery 
-              ? 'Try clearing your search keyword.' 
+            {searchQuery
+              ? 'Try clearing your search keyword.'
               : `Your log for ${getTypeLabel().toLowerCase()} is empty.`}
           </p>
         </div>
@@ -1096,7 +1088,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
       {isSelectMode && (
         <div className="fixed bottom-6 inset-x-4 z-40 flex justify-center pointer-events-none animate-slide-in-up">
           <div className="bg-slate-900/90 border border-slate-800 backdrop-blur-lg p-3.5 px-6 rounded-2xl flex flex-wrap items-center justify-between gap-4 max-w-4xl w-full shadow-2xl pointer-events-auto">
-            
+
             <div className="flex items-center gap-3">
               <button
                 onClick={handleToggleSelectAll}
@@ -1187,7 +1179,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
           </div>
         </div>
       )}
@@ -1201,10 +1193,10 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
               <h3 className="font-extrabold text-lg text-white">Syncing with TMDB...</h3>
               <p className="text-xs text-slate-400 mt-1">Retrieving high-fidelity metadata, posters, and IDs from TMDB.</p>
             </div>
-            
+
             <div className="space-y-2">
               <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full transition-all duration-350"
                   style={{ width: `${syncProgress}%` }}
                 />

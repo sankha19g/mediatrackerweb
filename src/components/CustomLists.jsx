@@ -94,6 +94,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [showListFilterDropdown, setShowListFilterDropdown] = useState(false)
   const [listSortBy, setListSortBy] = useState('newest_added')
   const [listSearchQuery, setListSearchQuery] = useState('')
+  const [listMediaTypeFilter, setListMediaTypeFilter] = useState('all') // 'all' | 'movie' | 'tv'
   
   const isCloud = isFirebaseConfigured() && user
 
@@ -125,6 +126,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       }
     })
   }, [lists, watchlistItems, onUpdateItem])
+
+  useEffect(() => {
+    setListMediaTypeFilter('all')
+    setListSearchQuery('')
+    setListSortBy('newest_added')
+  }, [activeListId])
 
   const activeList = lists.find(l => l.id === activeListId)
 
@@ -1137,10 +1144,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     }
   }
 
-  // Filter items in active list by search query
-  const filteredListItems = rawListItems.filter(item => 
-    item.title.toLowerCase().includes(listSearchQuery.toLowerCase())
-  )
+  // Filter items in active list by search query and media type
+  const filteredListItems = rawListItems.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(listSearchQuery.toLowerCase())
+    const matchesType = listMediaTypeFilter === 'all' || item.type === listMediaTypeFilter
+    return matchesSearch && matchesType
+  })
 
   // Sort items in active list
   const sortedListItems = [...filteredListItems].sort((a, b) => {
@@ -1326,7 +1335,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
               <div className="flex items-center gap-5">
                 {activeList.type === 'actor' && activeList.thumbnail_url && (
-                  <div className="w-32 sm:w-40 aspect-[2/3] rounded-xl overflow-hidden border border-slate-800 shadow-2xl flex-shrink-0">
+                  <div className="w-32 sm:w-40 aspect-[2/3] rounded-xl overflow-hidden border border-slate-800 shadow-[0_0_25px_rgba(0,0,0,0.95)] flex-shrink-0">
                     <img 
                       src={activeList.thumbnail_url} 
                       alt={activeList.name} 
@@ -1353,12 +1362,29 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           {/* Add item control bar */}
 
           {/* Controls Bar (Search, Fade Watched, Filter/Sort) */}
-          <div className="flex items-center justify-between gap-4 mt-6 mb-4 pb-2 border-b border-slate-900">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Items in this List ({sortedListItems.length})
-            </h3>
-            
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-4 mt-6 mb-4 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Media Type Filter (All / Movies / TV) */}
+              <div className="flex items-center bg-slate-950 p-1 border border-slate-800 rounded-none">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'movie', label: 'Movies' },
+                  { id: 'tv', label: 'TV' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setListMediaTypeFilter(tab.id)}
+                    className={`px-3 py-1 text-[11px] font-bold rounded-none transition-all cursor-pointer border ${
+                      listMediaTypeFilter === tab.id
+                        ? 'bg-violet-600/30 border-violet-500 text-violet-200 font-extrabold shadow-sm'
+                        : 'text-slate-400 hover:text-white border-transparent'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Search input inside list */}
               <input
                 type="text"

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad, Search, X, ListChecks, Bookmark } from 'lucide-react'
+import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad, Search, X, ListChecks, Bookmark, Grid3x3 } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -120,6 +120,35 @@ export default function Navbar({
                 </button>
               )}
             </div>
+
+            {isExplorePage && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (location.pathname !== '/explore_tmdb') {
+                    navigate('/explore_tmdb?view=all')
+                  } else {
+                    const p = new URLSearchParams(location.search)
+                    if (p.get('view') === 'all') {
+                      p.delete('view')
+                    } else {
+                      p.set('view', 'all')
+                    }
+                    const qs = p.toString()
+                    navigate(`/explore_tmdb${qs ? `?${qs}` : ''}`)
+                  }
+                }}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap ${
+                  params.get('view') === 'all'
+                    ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
+                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                }`}
+                title="Discover"
+              >
+                <Grid3x3 className="w-3.5 h-3.5 text-violet-400" />
+                <span className="hidden sm:inline">Discover</span>
+              </button>
+            )}
 
             {showSelectButton && (
               <button
