@@ -1,6 +1,7 @@
-import { X, Film, Tv, Compass, Settings as SettingsIcon, Shield, Layers, HelpCircle, UploadCloud, LogOut, Play, Globe, BarChart2, Bookmark } from 'lucide-react'
+import { X, Film, Tv, Compass, Settings as SettingsIcon, Shield, Layers, HelpCircle, UploadCloud, LogOut, Play, Globe, BarChart2, Bookmark, Grid3x3 } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { isTMDBConfigured } from '../lib/tmdb'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 export default function Sidebar({
   isOpen,
@@ -11,6 +12,8 @@ export default function Sidebar({
   user,
   onLogout
 }) {
+  const navigate = useNavigate()
+  const location = useLocation()
   if (!isOpen) return null
 
   const isConnectedToFirebase = isFirebaseConfigured()
@@ -55,15 +58,33 @@ export default function Sidebar({
           </div>
           
           <button
-            onClick={() => handleLinkClick('explore_tmdb')}
+            onClick={() => {
+              navigate('/explore_tmdb')
+              onClose()
+            }}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-              activeView === 'explore_tmdb'
+              location.pathname === '/explore_tmdb' && !location.search.includes('view=all')
                 ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
             }`}
           >
             <Compass className="w-4 h-4" />
             <span>Explore TMDB</span>
+          </button>
+
+          <button
+            onClick={() => {
+              navigate('/explore_tmdb?view=all')
+              onClose()
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+              location.pathname === '/explore_tmdb' && location.search.includes('view=all')
+                ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+            }`}
+          >
+            <Grid3x3 className="w-4 h-4" />
+            <span>Discover</span>
           </button>
 
           <button

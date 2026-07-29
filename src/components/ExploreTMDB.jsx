@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Search, Film, Tv, Plus, Check, Star, Calendar, Loader, ListChecks, CheckSquare, Square, X, ChevronLeft, ChevronRight, Flame, Sparkles, Trophy, TrendingUp, Info, Play, ArrowLeft, User, Building2, SlidersHorizontal, Heart, Grid3x3, ChevronDown } from 'lucide-react'
+import { Search, Film, Tv, Plus, Check, Star, Calendar, Loader, ListChecks, CheckSquare, Square, X, ChevronLeft, ChevronRight, Flame, Sparkles, Trophy, TrendingUp, Info, Play, ArrowLeft, User, Building2, SlidersHorizontal, Heart, Grid3x3, ChevronDown, Eye } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { fetchTMDB, getPosterUrl, isTMDBConfigured } from '../lib/tmdb'
 import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems, addFirebaseList, deleteFirebaseList } from '../lib/firebase'
@@ -140,8 +140,8 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
   if (!items || items.length === 0) return null
 
   return (
-    <div className="mb-10 relative group/row">
-      <div className="flex items-center justify-between mb-4 px-2">
+    <div className="mb-4 sm:mb-10 relative group/row">
+      <div className="flex items-center justify-between mb-2 sm:mb-4 px-2">
         <div className="flex items-center gap-2.5">
           {Icon && (
             <div className="w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
@@ -156,7 +156,7 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
         </div>
 
         {/* Scroll arrows */}
-        <div className="flex items-center gap-1.5">
+        <div className="hidden sm:flex items-center gap-1.5">
           <button
             onClick={() => scroll('left')}
             className="w-8 h-8 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-md"
@@ -177,7 +177,7 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
       {/* Row Items Container */}
       <div
         ref={rowRef}
-        className="flex gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-4 px-2 snap-x"
+        className="flex gap-2 sm:gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-4 px-2 snap-x"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {items.map((item) => {
@@ -195,7 +195,7 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
           return (
             <div
               key={cardKey}
-              className={`flex-shrink-0 w-36 sm:w-44 md:w-48 lg:w-[calc((100%-96px)/7)] group/card relative bg-slate-900/40 border rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col snap-start ${
+              className={`flex-shrink-0 w-24 sm:w-44 md:w-48 lg:w-[calc((100%-96px)/7)] group/card relative bg-slate-900/40 border rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col snap-start ${
                 isSelectMode && isSelected
                   ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/10'
                   : 'border-slate-800/80 hover:border-slate-700/80 hover:-translate-y-1'
@@ -1022,6 +1022,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
 
   const [actorLists, setActorLists] = useState([])
   const [toastMessage, setToastMessage] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const isCloud = isFirebaseConfigured() && user
 
   const fetchActorLists = async () => {
@@ -1379,7 +1380,7 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
                   {isPerson && (
                     <button
                       onClick={handleToggleFavourite}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-md ${
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-md w-fit ${
                         isFavourite
                           ? 'bg-rose-600 border-rose-500 text-white hover:bg-rose-700'
                           : 'bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
@@ -1453,29 +1454,76 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
           </h2>
           
           <div className="flex items-center gap-4 relative">
+            {/* Desktop Search Input */}
             <input
               type="text"
               placeholder="Search films..."
               value={worksSearchQuery}
               onChange={(e) => setWorksSearchQuery(e.target.value)}
-              className="bg-slate-900 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 w-32 sm:w-40 transition-all focus:w-48"
+              className="hidden sm:block bg-slate-900 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 w-32 sm:w-40 transition-all focus:w-48"
             />
+
+            {/* Mobile Magnifying Icon Button */}
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(true)}
+              className="sm:hidden p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+              title="Search films"
+            >
+              <Search className="w-4 h-4 text-violet-400" />
+            </button>
+
+            {/* Mobile Absolute Floating Search Bar */}
+            {isSearchOpen && (
+              <div className="absolute inset-y-0 right-0 left-0 bg-slate-900 border border-slate-800 rounded-xl p-1 flex items-center gap-2 z-30 shadow-2xl animate-fade-in">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search films..."
+                    value={worksSearchQuery}
+                    onChange={(e) => setWorksSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800/60 focus:border-violet-500 focus:outline-none rounded-lg pl-8 pr-7 py-1 text-xs text-white placeholder-slate-500"
+                  />
+                  {worksSearchQuery && (
+                    <button
+                      onClick={() => setWorksSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSearchOpen(false)
+                    setWorksSearchQuery('')
+                  }}
+                  className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-white cursor-pointer transition-all flex items-center justify-center"
+                  title="Close search"
+                >
+                  <X className="w-4 h-4 text-slate-400 hover:text-rose-400" />
+                </button>
+              </div>
+            )}
             <span className="text-xs font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-lg">
-              {watchedCount} films watched
+              {watchedCount} watched
             </span>
             {works.length > 0 && (
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <span className="text-xs font-bold text-slate-400">Fade Watched</span>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={fadeWatched}
-                    onChange={(e) => setFadeWatched(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-slate-850 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:border-slate-350 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600 peer-checked:after:bg-white peer-checked:after:border-transparent"></div>
-                </div>
-              </label>
+              <button
+                type="button"
+                onClick={() => setFadeWatched(!fadeWatched)}
+                className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                  fadeWatched
+                    ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                }`}
+                title={fadeWatched ? "Show Watched" : "Fade Watched"}
+              >
+                <Eye className="w-4 h-4" />
+              </button>
             )}
 
             {/* Sort & Filter Dropdown trigger */}
@@ -2261,7 +2309,7 @@ export default function ExploreTMDB({
                       <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
                         <div className="max-w-2xl space-y-4">
                           {/* Media Type & Trending Pill */}
-                          <div className="flex items-center gap-2">
+                          <div className="hidden sm:flex items-center gap-2">
                             <span className="flex items-center gap-1 text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 backdrop-blur-md">
                               <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> #{idx + 1} Trending This Week
                             </span>
@@ -2279,22 +2327,22 @@ export default function ExploreTMDB({
                             {slide.title || slide.name}
                           </h1>
 
-                          {/* Sub-info Bad--ges */}
+                          {/* Sub-info Badges */}
                           <div className="flex items-center flex-wrap gap-3 text-xs sm:text-sm font-semibold text-slate-300">
                             <span className="flex items-center gap-1 text-amber-400 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
                               <Star className="w-4 h-4 fill-amber-400" />
                               {(slide.vote_average || 0).toFixed(1)} TMDB
                             </span>
-                            <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
+                            <span className="hidden sm:inline-block bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg">
                               {slide.release_date ? slide.release_date.split('-')[0] : (slide.first_air_date ? slide.first_air_date.split('-')[0] : 'N/A')}
                             </span>
-                            <span className="bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg uppercase">
+                            <span className="hidden sm:inline-block bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-lg uppercase">
                               {slide.original_language || 'EN'}
                             </span>
                           </div>
 
                           {/* Overview */}
-                          <p className="text-xs sm:text-sm text-slate-300 line-clamp-3 leading-relaxed max-w-xl font-medium">
+                          <p className="hidden sm:block text-xs sm:text-sm text-slate-300 line-clamp-3 leading-relaxed max-w-xl font-medium">
                             {slide.overview || 'No synopsis available for this title.'}
                           </p>
 
@@ -2503,7 +2551,7 @@ export default function ExploreTMDB({
               <span className="text-sm">Fetching TMDB catalog categories...</span>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Row 1: Trending This Week */}
               <CategoryRow
                 title="Trending This Week"
@@ -2689,18 +2737,7 @@ export default function ExploreTMDB({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  Review / Notes
-                </label>
-                <textarea
-                  rows="3"
-                  value={userReview}
-                  onChange={(e) => setUserReview(e.target.value)}
-                  placeholder="What did you think?"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
-                />
-              </div>
+
             </div>
 
             <div className="flex gap-3 mt-6">

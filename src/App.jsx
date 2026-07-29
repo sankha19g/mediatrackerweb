@@ -84,6 +84,7 @@ export default function App() {
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('')
   const [globalSelectMode, setGlobalSelectMode] = useState(false)
+  const [globalFilterOpen, setGlobalFilterOpen] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('cinelog_current_tab', currentTab)
@@ -92,9 +93,11 @@ export default function App() {
   useEffect(() => {
     const isExplorePage = location.pathname.startsWith('/explore_tmdb')
     const isMediaPage = location.pathname.startsWith('/media/') || location.pathname.startsWith('/explore/')
-    if (!isExplorePage && !isMediaPage) {
+    const isWatchlistPage = location.pathname === '/'
+    if (!isExplorePage && !isMediaPage && !isWatchlistPage) {
       setGlobalSearchQuery('')
       setGlobalSelectMode(false)
+      setGlobalFilterOpen(false)
     }
   }, [location.pathname])
 
@@ -733,6 +736,8 @@ export default function App() {
         setSearchQuery={setGlobalSearchQuery}
         isSelectMode={globalSelectMode}
         setIsSelectMode={setGlobalSelectMode}
+        isFilterOpen={globalFilterOpen}
+        setIsFilterOpen={setGlobalFilterOpen}
       />
 
       {/* Hamburger Sidebar Navigation */}
@@ -802,6 +807,12 @@ export default function App() {
                   onAddItem={handleAddItem}
                   onAddItems={handleAddItems}
                   user={user}
+                  searchQuery={globalSearchQuery}
+                  setSearchQuery={setGlobalSearchQuery}
+                  isSelectMode={globalSelectMode}
+                  setIsSelectMode={setGlobalSelectMode}
+                  showFilterDropdown={globalFilterOpen}
+                  setShowFilterDropdown={setGlobalFilterOpen}
                 />
               } />
               

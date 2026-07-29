@@ -177,7 +177,7 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
 
   return (
     <div className="relative group/cast mb-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
+      <div className="flex items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
         {/* Dropdown / Header */}
         <div className="flex items-center gap-2">
           {isTv ? (
@@ -209,7 +209,7 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
         </div>
 
         {/* Action Controls (View All / Scroll Arrows) */}
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setShowAll(!showAll)}
@@ -219,7 +219,7 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
           </button>
 
           {!showAll && (
-            <div className="flex items-center gap-1.5">
+            <div className="hidden sm:flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => scroll('left')}
@@ -302,14 +302,14 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
 
           <div
             ref={scrollRef}
-            className="flex flex-nowrap gap-3.5 overflow-x-auto scrollbar-none py-1 scroll-smooth"
+            className="flex flex-nowrap gap-2 sm:gap-3.5 overflow-x-auto scrollbar-none py-1 scroll-smooth"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {activeCast.map(actor => (
               <div
                 key={`${actor.id}-${actor.character}`}
                 onClick={() => navigate(`/explore_tmdb?type=person&id=${actor.id}&name=${encodeURIComponent(actor.name)}`)}
-                className="w-28 sm:w-36 flex-shrink-0 bg-[#101424] hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md transition-all duration-300 hover:-translate-y-0.5 group/actor cursor-pointer border border-slate-800/60"
+                className="w-24 sm:w-36 flex-shrink-0 bg-[#101424] hover:border-violet-500/50 rounded-xl overflow-hidden flex flex-col shadow-md transition-all duration-300 hover:-translate-y-0.5 group/actor cursor-pointer border border-slate-800/60"
               >
                 <div className="aspect-[3/4] w-full bg-slate-950 relative overflow-hidden">
                   {actor.profile_path ? (
@@ -1055,7 +1055,13 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     } else {
       return acc
     }
-  }, [])
+  }, []).filter(provider => {
+    const name = (provider.provider_name || '').toLowerCase()
+    return !name.includes('youtube') && 
+           !name.includes('google play') && 
+           !name.includes('play store') && 
+           !name.includes('playstore')
+  })
 
   const formatUSD = (num) => {
     if (!num || num <= 0) return null
@@ -1212,34 +1218,6 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         <img
           src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQRpFZIm6Gp13p9WQ9TfharzuN7HS4J4Bo_dEs5Hp5uGg&s=10"
           alt="Letterboxd"
-          className="w-6 h-5 object-contain flex-shrink-0"
-        />
-      )
-    },
-    {
-      id: 'website',
-      label: 'Official Website',
-      show: !!homepage,
-      url: homepage || '#',
-      borderClass: 'border-violet-500/30 hover:border-violet-400',
-      badge: (
-        <img
-          src="https://png.pngtree.com/png-vector/20190319/ourmid/pngtree-vector-web-icon-png-image_847779.jpg"
-          alt="Website"
-          className="w-6 h-5 object-contain flex-shrink-0"
-        />
-      )
-    },
-    {
-      id: 'wikidata',
-      label: 'Wikidata',
-      show: !!wikipediaUrl,
-      url: wikipediaUrl || '#',
-      borderClass: 'border-slate-700 hover:border-slate-500',
-      badge: (
-        <img
-          src="https://upload.wikimedia.org/wikipedia/en/thumb/8/80/Wikipedia-logo-v2.svg/250px-Wikipedia-logo-v2.svg.png"
-          alt="Wikidata"
           className="w-6 h-5 object-contain flex-shrink-0"
         />
       )
@@ -2093,20 +2071,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Writer</span>
-                <span className="text-white font-bold truncate max-w-[160px] text-right">{writerName}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Country</span>
-                <span className="text-white font-bold">{productionCountry}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400 font-medium">Language</span>
-                <span className="text-white font-bold">
-                  {details?.original_language ? (LANGUAGE_NAMES[details.original_language.toLowerCase()] || details.original_language.toUpperCase()) : 'English'}
-                </span>
-              </div>
+
             </div>
           </div>
 
@@ -2136,74 +2101,14 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
             </div>
           )}
 
-          {/* RATINGS & SCORES Box */}
-          <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-2xl p-5 shadow-2xl">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <span>RATINGS & SCORES</span>
-                {loadingOmdb && <span className="text-[10px] text-violet-400 font-normal animate-pulse">(Syncing OMDb...)</span>}
-              </span>
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            </h3>
 
-            <div className="grid grid-cols-2 gap-3">
-              {ratingCards.map((card) => (
-                <a
-                  key={card.id}
-                  href={card.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`bg-[#101424] border p-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer group ${card.borderClass}`}
-                >
-                  {card.badge}
-                  <div className="flex flex-col min-w-0">
-                    <div className="flex items-baseline gap-0.5 leading-tight">
-                      <span className="text-base font-black text-white">{card.score}</span>
-                      {card.maxScore && <span className="text-[10px] font-bold text-slate-400">{card.maxScore}</span>}
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                      {card.sublabel}
-                    </span>
-                  </div>
-                </a>
-              ))}
-            </div>
-
-            {/* Extra OMDb & TMDB Info (Awards, Budget & Revenue) */}
-            {((omdbData && omdbData.awards) || budgetRaw || revenueRaw) && (
-              <div className="mt-3.5 pt-3 border-t border-slate-800 flex flex-col gap-1.5 text-[11px]">
-                {omdbData?.awards && (
-                  <div className="flex items-center gap-1.5 text-amber-300/90 font-medium truncate" title={omdbData.awards}>
-                    <Award className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                    <span className="truncate">{omdbData.awards}</span>
-                  </div>
-                )}
-                {budgetRaw && (
-                  <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>
-                      Budget: {budgetRaw} {budgetINR && <span className="text-[#a78bfa]">(INR Rs. {budgetINR})</span>}
-                    </span>
-                  </div>
-                )}
-                {revenueRaw && (
-                  <div className="flex items-center gap-1.5 text-emerald-300/90 font-medium">
-                    <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>
-                      Revenue: {revenueRaw} {revenueINR && <span className="text-[#a78bfa]">(INR Rs. {revenueINR})</span>}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* WHERE TO WATCH Box */}
-          <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
-              Streaming Platforms
-            </h3>
-            {watchProviders.length > 0 ? (
+          {watchProviders.length > 0 && (
+            <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+                Streaming Platforms
+              </h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   {(showAllProviders ? watchProviders : watchProviders.slice(0, 6)).map(provider => (
@@ -2234,12 +2139,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   </button>
                 )}
               </div>
-            ) : (
-              <div className="text-xs text-slate-500 italic py-2 text-center">
-                No streaming providers listed for this region.
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* EXTERNAL LINKS Box */}
           <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-5 shadow-2xl">
@@ -2291,12 +2192,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     <Sparkles className="w-5 h-5 text-violet-400" />
                     Part of the {collectionDetails.name}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Explore the entire franchise, ordered by release date.
-                  </p>
+
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="hidden sm:flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => scrollCollection('left')}
@@ -2340,7 +2239,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 {/* Horizontal Scroll Row */}
                 <div
                   ref={collectionScrollRef}
-                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+                  className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                   {sortedParts.map(part => {
@@ -2360,7 +2259,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                             navigate(`/explore/movie/${part.id}`)
                           }
                         }}
-                        className={`flex-shrink-0 w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg group ${isCurrent
+                        className={`flex-shrink-0 w-24 sm:w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg group ${isCurrent
                           ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
                           : 'border-slate-800 hover:border-slate-700/80 cursor-pointer'
                           }`}
@@ -2411,7 +2310,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   </h3>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="hidden sm:flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => scrollRow(recsScrollRef, 'left')}
@@ -2434,7 +2333,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               <div className="relative">
                 <div
                   ref={recsScrollRef}
-                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+                  className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                   {recommendations.slice(0, 20).map(rec => {
@@ -2452,7 +2351,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                             navigate(`/explore/${item.type || type}/${rec.id}`)
                           }
                         }}
-                        className="flex-shrink-0 w-32 bg-[#0f1422] border border-slate-800 hover:border-slate-700/80 rounded-lg overflow-hidden shadow-lg group cursor-pointer"
+                        className="flex-shrink-0 w-24 sm:w-32 bg-[#0f1422] border border-slate-800 hover:border-slate-700/80 rounded-lg overflow-hidden shadow-lg group cursor-pointer"
                       >
                         <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
                           {rec.poster_path ? (
@@ -2483,107 +2382,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
             </div>
           )}
 
-          {/* Similar Row */}
-          {similar.length > 0 && (
-            <div className="mt-2 border-t border-slate-900/40 pt-3">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-violet-400" />
-                    Similar Titles
-                  </h3>
-                </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => scrollRow(similarScrollRef, 'left')}
-                    className="w-7 h-7 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 bg-[#101424] flex items-center justify-center transition-all cursor-pointer"
-                    title="Scroll Left"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollRow(similarScrollRef, 'right')}
-                    className="w-7 h-7 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 bg-[#101424] flex items-center justify-center transition-all cursor-pointer"
-                    title="Scroll Right"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="relative">
-                <div
-                  ref={similarScrollRef}
-                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
-                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                >
-                  {similar.slice(0, 20).map(sim => {
-                    const releaseDate = sim.release_date || sim.first_air_date || ''
-                    const year = releaseDate ? releaseDate.split('-')[0] : 'TBA'
-                    const watchlistInstance = items.find(i => i.tmdb_id && i.tmdb_id.toString() === sim.id.toString() && i.type === (item.type || type) && i.status !== 'list_only')
-
-                    return (
-                      <div
-                        key={sim.id}
-                        onClick={() => {
-                          if (watchlistInstance) {
-                            navigate(`/media/${watchlistInstance.id}`)
-                          } else {
-                            navigate(`/explore/${item.type || type}/${sim.id}`)
-                          }
-                        }}
-                        className="flex-shrink-0 w-32 bg-[#0f1422] border border-slate-800 hover:border-slate-700/80 rounded-lg overflow-hidden shadow-lg group cursor-pointer"
-                      >
-                        <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
-                          {sim.poster_path ? (
-                            <img
-                              src={`https://image.tmdb.org/t/p/w185${sim.poster_path}`}
-                              alt={sim.title || sim.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-500 bg-slate-900 font-bold text-4xl rounded-none">
-                              {(sim.title || sim.name || 'U').charAt(0)}
-                            </div>
-                          )}
-
-                          {watchlistInstance && (
-                            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[10px] font-bold py-1 px-1.5 flex items-center justify-center gap-1 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).containerStyle}`}>
-                              <Check className={`w-3.5 h-3.5 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).iconColor}`} />
-                              <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* My Review & Notes */}
-          {!item.isExplore && (
-            <div className="mt-4">
-              <h3 className="text-lg font-bold text-white mb-3">My Notes & Review</h3>
-              <div className="bg-[#0f1422] border border-slate-800 rounded-2xl p-4 min-h-[100px] shadow-inner">
-                {item.review ? (
-                  <p className="text-slate-300 leading-relaxed whitespace-pre-wrap text-sm">{item.review}</p>
-                ) : (
-                  <p className="text-slate-500 italic text-xs">No notes or review written for this item yet. Use the Quick Edit button in your watchlist to add some!</p>
-                )}
-              </div>
-
-              <div className="mt-3 text-[10px] text-slate-500 flex flex-col gap-1">
-                <span>Added to list: {new Date(item.created_at).toLocaleDateString()}</span>
-                {item.watched_at && <span>Last Activity: {new Date(item.watched_at).toLocaleDateString()}</span>}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -2876,18 +2675,20 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Notes / Review
-                </label>
-                <textarea
-                  rows="3"
-                  value={addReview}
-                  onChange={(e) => setAddReview(e.target.value)}
-                  placeholder="Add personal notes or review..."
-                  className="w-full bg-[#0a0a0a] border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
-                />
-              </div>
+              {!item.isExplore && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Notes / Review
+                  </label>
+                  <textarea
+                    rows="3"
+                    value={addReview}
+                    onChange={(e) => setAddReview(e.target.value)}
+                    placeholder="Add personal notes or review..."
+                    className="w-full bg-[#0a0a0a] border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 resize-none"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-3 mt-6">

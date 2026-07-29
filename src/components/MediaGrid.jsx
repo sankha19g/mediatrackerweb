@@ -96,15 +96,36 @@ const LANG_TO_COUNTRY = {
   'th': 'Thailand',
 }
 
-export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveItem, onItemClick, onAddItem, onAddItems, user }) {
+export default function MediaGrid({ 
+  items, 
+  typeFilter, 
+  onUpdateItem, 
+  onRemoveItem, 
+  onItemClick, 
+  onAddItem, 
+  onAddItems, 
+  user,
+  searchQuery: propSearchQuery,
+  setSearchQuery: propSetSearchQuery,
+  isSelectMode: propIsSelectMode,
+  setIsSelectMode: propSetIsSelectMode,
+  showFilterDropdown: propShowFilterDropdown,
+  setShowFilterDropdown: propSetShowFilterDropdown
+}) {
   const [statusFilter, setStatusFilter] = useState(() => {
     return localStorage.getItem('cinelog_status_filter') || 'all'
   })
-  const [searchQuery, setSearchQuery] = useState('')
+  const [localSearchQuery, setLocalSearchQuery] = useState('')
+  const searchQuery = propSearchQuery !== undefined ? propSearchQuery : localSearchQuery
+  const setSearchQuery = propSetSearchQuery !== undefined ? propSetSearchQuery : setLocalSearchQuery
+
   const [sortBy, setSortBy] = useState('newest_added') // 'newest_added', 'release_date'
   const [editingItem, setEditingItem] = useState(null)
   const [listsSubTab, setListsSubTab] = useState('movie_tv') // 'movie_tv', 'actors'
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false)
+  
+  const [localShowFilterDropdown, setLocalShowFilterDropdown] = useState(false)
+  const showFilterDropdown = propShowFilterDropdown !== undefined ? propShowFilterDropdown : localShowFilterDropdown
+  const setShowFilterDropdown = propSetShowFilterDropdown !== undefined ? propSetShowFilterDropdown : setLocalShowFilterDropdown
   const [yearFilter, setYearFilter] = useState('all')
   const [languageFilter, setLanguageFilter] = useState('all')
   const [countryFilter, setCountryFilter] = useState('all')
@@ -191,8 +212,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
     return () => { isMounted = false }
   }, [items, onUpdateItem])
 
-  // Multi-Select Mode States
-  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [localIsSelectMode, setLocalIsSelectMode] = useState(false)
+  const isSelectMode = propIsSelectMode !== undefined ? propIsSelectMode : localIsSelectMode
+  const setIsSelectMode = propSetIsSelectMode !== undefined ? propSetIsSelectMode : setLocalIsSelectMode
   const [selectedIds, setSelectedIds] = useState([])
   const [lists, setLists] = useState([])
   const [isSyncing, setIsSyncing] = useState(false)
@@ -632,9 +654,6 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <Bookmark className="w-6 h-6 text-violet-400" />
                   My Saved Lists
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Create and manage your saved lists of movies, TV shows, and actors.
-                </p>
               </div>
             </div>
 
@@ -740,7 +759,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
   return (
     <div className="py-6 px-4">
       {/* Grid Header & Controls */}
-      <div className="mb-6 flex items-center justify-end gap-2">
+      <div className={`mb-0 md:mb-6 flex items-center justify-end gap-2 ${showFilterDropdown ? 'mb-6 md:mb-6' : ''}`}>
         {/* Local Search & Filter & Sort Controls */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
           <input
@@ -748,14 +767,14 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
             placeholder={`Search ${getTypeLabel().toLowerCase()}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-slate-900 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-500 flex-1 min-w-0 md:w-48"
+            className="hidden md:block bg-slate-900 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-500 flex-1 min-w-0 md:w-48"
           />
 
           {/* Filter & Sort Dropdown */}
           <div className="relative flex-shrink-0">
             <button
               onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-              className={`flex items-center justify-center w-8 h-8 rounded-none border text-xs font-semibold cursor-pointer transition-all ${showFilterDropdown
+              className={`hidden md:flex items-center justify-center w-8 h-8 rounded-none border text-xs font-semibold cursor-pointer transition-all ${showFilterDropdown
                   ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                 }`}
@@ -770,15 +789,15 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Sort By
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-955 border border-slate-800 rounded-none px-2 py-1">
                     <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value)}
                       className="bg-transparent border-none text-xs text-slate-300 focus:outline-none cursor-pointer w-full pr-1"
                     >
-                      <option value="newest_added" className="bg-slate-950 text-slate-300">Newest Added</option>
-                      <option value="release_date" className="bg-slate-950 text-slate-300">Release Date</option>
+                      <option value="newest_added" className="bg-slate-955 text-slate-300">Newest Added</option>
+                      <option value="release_date" className="bg-slate-955 text-slate-300">Release Date</option>
                     </select>
                   </div>
                 </div>
@@ -787,16 +806,16 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Release Year
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-955 border border-slate-800 rounded-none px-2 py-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={yearFilter}
                       onChange={(e) => setYearFilter(e.target.value)}
                       className="bg-transparent border-none text-xs text-slate-350 focus:outline-none cursor-pointer w-full pr-1"
                     >
-                      <option value="all" className="bg-slate-950 text-slate-300">All Years</option>
+                      <option value="all" className="bg-slate-955 text-slate-300">All Years</option>
                       {availableYears.map(year => (
-                        <option key={year} value={year} className="bg-slate-950 text-slate-300">{year}</option>
+                        <option key={year} value={year} className="bg-slate-955 text-slate-300">{year}</option>
                       ))}
                     </select>
                   </div>
@@ -806,16 +825,16 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Original Language
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-955 border border-slate-800 rounded-none px-2 py-1">
                     <Globe className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={languageFilter}
                       onChange={(e) => setLanguageFilter(e.target.value)}
                       className="bg-transparent border-none text-xs text-slate-355 focus:outline-none cursor-pointer w-full pr-1"
                     >
-                      <option value="all" className="bg-slate-950 text-slate-300">All Languages</option>
+                      <option value="all" className="bg-slate-955 text-slate-300">All Languages</option>
                       {availableLanguages.map(lang => (
-                        <option key={lang.code} value={lang.code} className="bg-slate-950 text-slate-300">{lang.name}</option>
+                        <option key={lang.code} value={lang.code} className="bg-slate-955 text-slate-300">{lang.name}</option>
                       ))}
                     </select>
                   </div>
@@ -825,16 +844,16 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Country
                   </label>
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-none px-2 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-955 border border-slate-800 rounded-none px-2 py-1">
                     <MapPin className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={countryFilter}
                       onChange={(e) => setCountryFilter(e.target.value)}
                       className="bg-transparent border-none text-xs text-slate-350 focus:outline-none cursor-pointer w-full pr-1"
                     >
-                      <option value="all" className="bg-slate-950 text-slate-300">All Countries</option>
+                      <option value="all" className="bg-slate-955 text-slate-300">All Countries</option>
                       {availableCountries.map(country => (
-                        <option key={country} value={country} className="bg-slate-950 text-slate-300">{country}</option>
+                        <option key={country} value={country} className="bg-slate-955 text-slate-300">{country}</option>
                       ))}
                     </select>
                   </div>
@@ -849,7 +868,7 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
                       onChange={(e) => setHideIndian(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-8 h-4.5 bg-slate-950 rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-3.5 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-500 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-violet-600 peer-checked:after:bg-white"></div>
+                    <div className="w-8 h-4.5 bg-slate-955 rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-3.5 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-500 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-violet-600 peer-checked:after:bg-white"></div>
                   </label>
                 </div>
               </div>
@@ -861,9 +880,9 @@ export default function MediaGrid({ items, typeFilter, onUpdateItem, onRemoveIte
               setIsSelectMode(!isSelectMode)
               setSelectedIds([])
             }}
-            className={`flex items-center justify-center w-8 h-8 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${isSelectMode
+            className={`hidden md:flex items-center justify-center w-8 h-8 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${isSelectMode
                 ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
-                : 'bg-slate-900 border-slate-800 text-slate-450 hover:text-slate-200 hover:border-slate-700'
+                : 'bg-slate-900 border-slate-800 text-slate-455 hover:text-slate-200 hover:border-slate-700'
               }`}
             title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
           >

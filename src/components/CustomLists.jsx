@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal } from 'lucide-react'
+import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal, Search } from 'lucide-react'
 import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList, updateFirebaseList } from '../lib/firebase'
 import { getPosterUrl, fetchTMDB, searchGames } from '../lib/tmdb'
 
@@ -94,6 +94,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [showListFilterDropdown, setShowListFilterDropdown] = useState(false)
   const [listSortBy, setListSortBy] = useState('newest_added')
   const [listSearchQuery, setListSearchQuery] = useState('')
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [listMediaTypeFilter, setListMediaTypeFilter] = useState('all') // 'all' | 'movie' | 'tv'
   
   const isCloud = isFirebaseConfigured() && user
@@ -1363,7 +1364,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
           {/* Controls Bar (Search, Fade Watched, Filter/Sort) */}
           <div className="flex items-center justify-end gap-4 mt-6 mb-4 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap relative">
               {/* Media Type Filter (All / Movies / TV) */}
               <div className="flex items-center bg-slate-950 p-1 border border-slate-800 rounded-none">
                 {[
@@ -1385,14 +1386,60 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                 ))}
               </div>
 
-              {/* Search input inside list */}
+              {/* Desktop Search Input */}
               <input
                 type="text"
                 placeholder="Search in list..."
                 value={listSearchQuery}
                 onChange={(e) => setListSearchQuery(e.target.value)}
-                className="bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-550 w-32 sm:w-48 transition-colors"
+                className="hidden sm:block bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-none px-3 py-1.5 text-xs text-white placeholder-slate-550 w-32 sm:w-48 transition-colors"
               />
+
+              {/* Mobile Magnifying Icon Button */}
+              <button
+                type="button"
+                onClick={() => setIsMobileSearchOpen(true)}
+                className="sm:hidden p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+                title="Search in list"
+              >
+                <Search className="w-4 h-4 text-violet-400" />
+              </button>
+
+              {/* Mobile Absolute Floating Search Bar */}
+              {isMobileSearchOpen && (
+                <div className="absolute inset-y-0 right-0 left-0 bg-slate-900 border border-slate-800 rounded-xl p-1 flex items-center gap-2 z-30 shadow-2xl animate-fade-in">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Search in list..."
+                      value={listSearchQuery}
+                      onChange={(e) => setListSearchQuery(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800/60 focus:border-violet-500 focus:outline-none rounded-lg pl-8 pr-7 py-1 text-xs text-white placeholder-slate-550"
+                    />
+                    {listSearchQuery && (
+                      <button
+                        onClick={() => setListSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileSearchOpen(false)
+                      setListSearchQuery('')
+                    }}
+                    className="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-850 text-slate-400 hover:text-white cursor-pointer transition-all flex items-center justify-center"
+                    title="Close search"
+                  >
+                    <X className="w-4 h-4 text-slate-400 hover:text-rose-400" />
+                  </button>
+                </div>
+              )}
 
               {/* Fade Watched Toggle Button */}
               <button
