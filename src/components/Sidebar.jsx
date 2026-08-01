@@ -1,4 +1,4 @@
-import { X, Film, Tv, Compass, Settings as SettingsIcon, Shield, Layers, HelpCircle, UploadCloud, LogOut, Play, Globe, BarChart2, Bookmark, Grid3x3 } from 'lucide-react'
+import { X, Film, Tv, Compass, Settings as SettingsIcon, Shield, Layers, HelpCircle, UploadCloud, LogOut, Play, Globe, BarChart2, Bookmark, Grid3x3, LogIn } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { isTMDBConfigured } from '../lib/tmdb'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -140,6 +140,19 @@ export default function Sidebar({
             <SettingsIcon className="w-4 h-4" />
             <span>Settings</span>
           </button>
+
+          {isConnectedToFirebase && !user && (
+            <button
+              onClick={() => {
+                navigate('/auth')
+                onClose()
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-violet-400 hover:text-violet-300 hover:bg-violet-950/20 transition-all cursor-pointer border border-transparent hover:border-violet-900/30"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Sign In</span>
+            </button>
+          )}
 
           {user && (
             <button

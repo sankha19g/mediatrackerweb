@@ -230,18 +230,8 @@ export default function Navbar({
               )}
             </div>
           )}
-          {/* Auth Button */}
-          {isAuthEnabled ? (
-            user ? null : (
-              <button
-                onClick={onNavigateToAuth}
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                Sign In
-              </button>
-            )
-          ) : (
+          {/* Auth Button moved to Hamburger menu. Only show Demo Mode indicator if not auth enabled */}
+          {!isAuthEnabled && (
             <span className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
               Demo Mode
             </span>

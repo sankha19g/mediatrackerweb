@@ -880,7 +880,7 @@ export default function MediaGrid({
               setIsSelectMode(!isSelectMode)
               setSelectedIds([])
             }}
-            className={`hidden md:flex items-center justify-center w-8 h-8 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${isSelectMode
+            className={`hidden md:flex items-center justify-center w-8 h-8  border text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${isSelectMode
                 ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
                 : 'bg-slate-900 border-slate-800 text-slate-455 hover:text-slate-200 hover:border-slate-700'
               }`}

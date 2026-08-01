@@ -116,6 +116,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [searchingPopup, setSearchingPopup] = useState(false)
   const [selectedPopupItems, setSelectedPopupItems] = useState({})
 
+  // Track viewport width excluding scrollbar (window.innerWidth) to avoid 100vw overflow
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+
   // Auto-migrate existing custom list items with 'planned' status to 'list_only'
   useEffect(() => {
     if (lists.length === 0 || watchlistItems.length === 0 || !onUpdateItem) return
@@ -190,6 +193,26 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   useEffect(() => {
     fetchLists()
   }, [typeFilter, user])
+
+  // Disable body scroll when modals are open to prevent double scrollbars
+  useEffect(() => {
+    const isAnyModalOpen = showCreateModal || showEditModal || showCropModal || showAddPopup
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showCreateModal, showEditModal, showCropModal, showAddPopup])
+
+  // Keep viewportWidth in sync with actual window size (excludes scrollbar unlike 100vw)
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Load suggestions when Add Popup is opened
   useEffect(() => {
@@ -500,7 +523,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     try {
       let finalItemIds = [...activeList.item_ids]
 
-      if (editLetterboxdUrl.trim() && typeFilter === 'movie') {
+      if (editLetterboxdUrl.trim() && activeList?.type === 'movie') {
         setImportStatus('Fetching Letterboxd list...')
         const cleanUrl = editLetterboxdUrl.trim()
         
@@ -1233,34 +1256,24 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         /* =================== DETAILED VIEW OF ACTIVE LIST =================== */
         <div className="space-y-6 relative min-h-[500px]">
           {/* Cinematic Background Banner Backdrop */}
-          <div className="w-screen absolute left-1/2 -translate-x-1/2 top-0 h-[480px] md:h-[580px] overflow-hidden bg-black z-0 pointer-events-none">
+          <div
+            className={`w-screen absolute left-1/2 -translate-x-1/2 top-0 overflow-hidden z-0 pointer-events-none ${
+              activeList.banner_url || activeList.thumbnail_url ? 'h-auto' : 'h-[480px] md:h-[580px] bg-black'
+            }`}
+          >
             {/* Banner Image */}
             {activeList.banner_url || activeList.thumbnail_url ? (
-              <>
-                <style dangerouslySetInnerHTML={{ __html: `
-                  @media (max-width: 768px) {
-                    .banner-img-${activeList.id} {
-                      object-position: center ${activeList.banner_position_mobile ?? 50}% !important;
-                    }
-                  }
-                  @media (min-width: 769px) {
-                    .banner-img-${activeList.id} {
-                      object-position: center ${activeList.banner_position_pc ?? 50}% !important;
-                    }
-                  }
-                ` }} />
-                <img 
-                  src={activeList.banner_url || activeList.thumbnail_url} 
-                  alt="" 
-                  className={`w-full h-full object-cover opacity-100 banner-img-${activeList.id}`}
-                />
-              </>
+              <img 
+                src={activeList.banner_url || activeList.thumbnail_url} 
+                alt="" 
+                className="w-full h-auto opacity-100"
+              />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-violet-950/20 via-black to-indigo-950/20 opacity-85" />
             )}
             
             {/* Lighter bottom fade overlay so the grid foreground elements are easily readable */}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/30 to-[#0b0f19]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/40 to-black" />
           </div>
 
           {/* Main Layout content */}
@@ -1301,7 +1314,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                     {/* Add Items (+) Button */}
                     <button
                       onClick={() => setShowAddPopup(true)}
-                      className="p-2.5 bg-violet-650 hover:bg-violet-600 text-white rounded-xl transition-all shadow-lg shadow-violet-650/25 border border-violet-500/35 cursor-pointer flex items-center justify-center"
+                      className="p-2.5 bg-slate-900/60 hover:bg-slate-800 text-slate-350 hover:text-white rounded-xl transition-all shadow-lg shadow-violet-650/25 border border-violet-500/35 cursor-pointer flex items-center justify-center"
                       title="Add Items"
                     >
                       <Plus className="w-4 h-4" />
@@ -1503,7 +1516,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               </div>
             ) : rawListItems.length > 0 ? (
               sortedListItems.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6">
+                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
                   {sortedListItems.map(item => {
                     const isWatched = item.status === 'completed'
                     const statusInfo = getStatusLabelAndStyle(item.status, item.type)
@@ -1595,7 +1608,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className={`grid gap-4 sm:gap-6 ${
             typeFilter === 'actor' 
-              ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6' 
+              ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7' 
               : 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
           }`}>
             
@@ -1702,22 +1715,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                     </div>
                   )}
 
-                  {typeFilter === 'lists' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                        List Type
-                      </label>
-                      <select
-                        disabled={importing}
-                        value={newListType}
-                        onChange={(e) => setNewListType(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-violet-500 cursor-pointer"
-                      >
-                        <option value="movie" className="bg-slate-950 text-slate-350">Movies</option>
-                        <option value="tv" className="bg-slate-950 text-slate-350">TV Shows / Series</option>
-                      </select>
-                    </div>
-                  )}
+                  {/* List Type dropdown removed */}
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
@@ -1776,7 +1774,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                     />
                   </div>
 
-                  {typeFilter === 'movie' && (
+                  {newListType === 'movie' && (
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                         <span>Import from Letterboxd URL (Optional)</span>
@@ -1919,21 +1917,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       placeholder="e.g. https://example.com/banner.jpg"
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-violet-500"
                     />
-                    {editBannerUrl.trim() && (
-                      <div className="mt-1.5 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setShowCropModal(true)}
-                          className="text-[10px] font-extrabold text-violet-400 hover:text-violet-300 uppercase tracking-wider transition-colors inline-flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/25 px-2.5 py-1 rounded-lg"
-                        >
-                          <SlidersHorizontal className="w-3.5 h-3.5" />
-                          Crop / Align Banner
-                        </button>
-                      </div>
-                    )}
                   </div>
 
-                  {typeFilter === 'movie' && (
+                  {activeList?.type === 'movie' && (
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                         <span>Import & Merge from Letterboxd (Optional)</span>

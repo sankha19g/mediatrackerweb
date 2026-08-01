@@ -143,13 +143,8 @@ const CategoryRow = ({ title, subtitle, icon: Icon, items, watchedItems, openAdd
     <div className="mb-4 sm:mb-10 relative group/row">
       <div className="flex items-center justify-between mb-2 sm:mb-4 px-2">
         <div className="flex items-center gap-2.5">
-          {Icon && (
-            <div className="w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
-              <Icon className="w-4 h-4" />
-            </div>
-          )}
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-xl font-bold text-white tracking-tight">
               {title}
             </h2>
           </div>
@@ -1373,28 +1368,26 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
             {/* Text Details */}
             <div className="flex-1 min-w-0 space-y-4">
               <div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-wrap mb-1">
-                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-                    {data.name}
-                  </h1>
-                  {isPerson && (
-                    <button
-                      onClick={handleToggleFavourite}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-md w-fit ${
-                        isFavourite
-                          ? 'bg-rose-600 border-rose-500 text-white hover:bg-rose-700'
-                          : 'bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
-                      }`}
-                    >
-                      <Heart className={`w-3.5 h-3.5 ${isFavourite ? 'fill-white' : ''}`} />
-                      {isFavourite ? 'Saved as Favourite' : 'Set as Favourite'}
-                    </button>
-                  )}
-                </div>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight mb-1">
+                  {data.name}
+                </h1>
                 {isPerson && data.known_for_department && (
-                  <p className="text-xs sm:text-sm font-extrabold text-violet-400 uppercase tracking-wider">
+                  <p className="text-xs sm:text-sm font-extrabold text-violet-400 uppercase tracking-wider mb-2">
                     {data.known_for_department}
                   </p>
+                )}
+                {isPerson && (
+                  <button
+                    onClick={handleToggleFavourite}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-md w-fit ${
+                      isFavourite
+                        ? 'bg-rose-600 border-rose-500 text-white hover:bg-rose-700'
+                        : 'bg-slate-900/80 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <Heart className={`w-3.5 h-3.5 ${isFavourite ? 'fill-white' : ''}`} />
+                    {isFavourite ? 'Saved as Favourite' : 'Set as Favourite'}
+                  </button>
                 )}
               </div>
 
@@ -1407,7 +1400,6 @@ const DetailView = ({ detail, onBack, isFromState, watchedItems, onAddItem, navi
                         <span className="text-white font-bold">
                           {getAge(data.birthday, data.deathday)} years old
                           {data.deathday ? ' (at death)' : ''}
-                          {data.place_of_birth ? ` (Born in ${data.place_of_birth})` : ''}
                         </span>
                       </div>
                     )}

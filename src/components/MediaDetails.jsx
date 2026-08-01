@@ -176,11 +176,12 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
   const epNumLabel = currentEpisodesWatched > 0 ? currentEpisodesWatched : 1
 
   return (
-    <div className="relative group/cast mb-6">
-      <div className="flex items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
+    <div className="relative group/cast">
+      <div className="flex items-center justify-between gap-3 mb-3">
         {/* Dropdown / Header */}
-        <div className="flex items-center gap-2">
-          {isTv ? (
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-bold text-white">Cast</h3>
+          {isTv && (
             <div className="relative flex items-center">
               <select
                 value={selectedCreditScope}
@@ -199,8 +200,6 @@ const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeaso
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none" />
             </div>
-          ) : (
-            <h4 className="text-xs sm:text-sm font-semibold text-slate-200 tracking-wide">Top Cast</h4>
           )}
 
           {loadingCast && (
@@ -1160,6 +1159,28 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     }
   ]
 
+  const getMoctaleUrl = () => {
+    if (!title || title === 'Loading...') return '#'
+    let slug = title
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+    
+    // Remove special characters: : , ; . ? ! ( ) [ ] { } ' " / \ _ @ # $ % ^ & * + = < > ` ~ |
+    slug = slug.replace(/[:,\;\.\?!()\[\]\{\}'"\/\\_@#\$%\^&\*\+=<>`~|]/g, '')
+    
+    // Fill spaces with "-"
+    slug = slug.trim().replace(/\s+/g, '-')
+    
+    // Replace multiple consecutive dashes with a single dash
+    slug = slug.replace(/-+/g, '-')
+    
+    if (releaseYear) {
+      slug = `${slug}-${releaseYear}`
+    }
+    return `https://www.moctale.in/content/${slug}`
+  }
+
   // Data Array Config for EXTERNAL LINKS
   const externalLinksData = [
     {
@@ -1219,6 +1240,20 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQRpFZIm6Gp13p9WQ9TfharzuN7HS4J4Bo_dEs5Hp5uGg&s=10"
           alt="Letterboxd"
           className="w-6 h-5 object-contain flex-shrink-0"
+        />
+      )
+    },
+    {
+      id: 'moctale',
+      label: 'Moctale',
+      show: true,
+      url: getMoctaleUrl(),
+      borderClass: 'border-amber-500/30 hover:border-amber-400',
+      badge: (
+        <img
+          src="https://www.moctale.in/apple-touch-icon-180x180.png"
+          alt="Moctale"
+          className="w-5 h-5 object-contain rounded flex-shrink-0"
         />
       )
     }
@@ -2148,18 +2183,39 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               EXTERNAL LINKS
             </h3>
             <div className="flex flex-wrap gap-2">
-              {externalLinksData.filter(link => link.show).map((link) => (
-                <a
-                  key={link.id}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group cursor-pointer ${link.borderClass}`}
-                >
-                  {link.badge}
-                  <span>{link.label}</span>
-                </a>
-              ))}
+              {externalLinksData.filter(link => link.show).map((link) => {
+                const isYouTube = link.id === 'youtube';
+                if (isYouTube) {
+                  return (
+                    <button
+                      key={link.id}
+                      onClick={() => {
+                        if (trailer?.key) {
+                          setIsTrailerOpen(true);
+                        } else {
+                          window.open(link.url, '_blank', 'noopener,noreferrer');
+                        }
+                      }}
+                      className={`flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group cursor-pointer ${link.borderClass}`}
+                    >
+                      {link.badge}
+                      <span>{link.label}</span>
+                    </button>
+                  );
+                }
+                return (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-2 bg-[#101424] hover:bg-[#181e36] border text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm group cursor-pointer ${link.borderClass}`}
+                  >
+                    {link.badge}
+                    <span>{link.label}</span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2167,7 +2223,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
         {/* ========================================================================= */}
         {/* RIGHT MAIN COLUMN (lg:col-span-8) */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
+        <div className="lg:col-span-8 flex flex-col gap-4">
           {/* TV Show Progress & Episode Tracker Section */}
           {renderTvTracker('desktop')}
 
@@ -2185,11 +2241,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
           {/* Franchise Collection Section */}
           {collectionDetails && sortedParts.length > 0 && (
-            <div className="mt-4 border-t border-slate-900 pt-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="border-t border-slate-900/60 pt-4">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-violet-400" />
+                  <h3 className="text-lg font-bold text-white">
                     Part of the {collectionDetails.name}
                   </h3>
 
@@ -2301,11 +2356,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
           {/* Recommended Row */}
           {recommendations.length > 0 && (
-            <div className="mt-2 border-t border-slate-900/40 pt-3">
-              <div className="flex items-center justify-between mb-4">
+            <div className="border-t border-slate-900/40 pt-4">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-violet-400" />
+                  <h3 className="text-lg font-bold text-white">
                     Recommended For You
                   </h3>
                 </div>
