@@ -439,8 +439,22 @@ const SeasonCard = ({ season, item, seasonsWatched, toggleSeasonWatched }) => {
       if (episodes.length === 0) {
         setLoading(true)
         try {
-          const data = await fetchTMDB(`/tv/${item.tmdb_id}/season/${season.season_number}`)
-          setEpisodes(data.episodes || [])
+          if (item.tmdb_id?.toString().startsWith('anilist_')) {
+            const mockEpisodes = []
+            for (let i = 1; i <= (season.episode_count || 12); i++) {
+              mockEpisodes.push({
+                id: `${item.tmdb_id}_ep_${i}`,
+                episode_number: i,
+                name: `Episode ${i}`,
+                overview: `Watch Episode ${i} of ${item.title || 'Anime'}.`,
+                still_path: null
+              })
+            }
+            setEpisodes(mockEpisodes)
+          } else {
+            const data = await fetchTMDB(`/tv/${item.tmdb_id}/season/${season.season_number}`)
+            setEpisodes(data.episodes || [])
+          }
         } catch (err) {
           console.error(err)
         } finally {
@@ -741,7 +755,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           })
           setDetails(data)
         } catch (error) {
-          console.error("Failed to fetch extended details from TMDB:", error)
+          console.error("Failed to fetch extended details:", error)
         } finally {
           setLoading(false)
         }
@@ -788,20 +802,19 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
       if (currentSeasonDetails?.season_number === targetSeasonNum && currentSeasonDetails?._tmdb_id?.toString() === targetTmdbId?.toString()) {
         return
       }
-
       const fetchSeason = async () => {
         try {
           const data = await fetchTMDB(`/tv/${targetTmdbId}/season/${targetSeasonNum}`)
           if (data) {
             setCurrentSeasonDetails({ ...data, season_number: targetSeasonNum, _tmdb_id: targetTmdbId })
           }
-        } catch (e) {
-          console.error("Failed to fetch season details from TMDB:", e)
+        } catch (error) {
+          console.error("Failed to fetch season details:", error)
         }
       }
       fetchSeason()
     }
-  }, [details?.id, item?.tmdb_id, item?.type, item?.season_number, type, tmdbId])
+  }, [details?.id, item?.tmdb_id, item?.type, item?.season_number, type, tmdbId, details])
 
   if (!item) {
     return (
@@ -2294,61 +2307,78 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                 {/* Horizontal Scroll Row */}
                 <div
                   ref={collectionScrollRef}
-                  className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+                  className="overflow-x-auto pb-4 scrollbar-none scroll-smooth"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
-                  {sortedParts.map(part => {
-                    const releaseDate = part.release_date || ''
-                    const partYear = releaseDate ? releaseDate.split('-')[0] : 'TBA'
-                    const isCurrent = part.id.toString() === item.tmdb_id
-                    const watchlistInstance = userWatchedPart(part.id)
+                  <div className="relative flex gap-3 sm:gap-5 w-max min-w-full pb-4 pt-2 px-6">
+                    {sortedParts.map((part, index) => {
+                      const releaseDate = part.release_date || ''
+                      const partYear = releaseDate ? releaseDate.split('-')[0] : 'TBA'
+                      const isCurrent = part.id.toString() === item.tmdb_id
+                      const watchlistInstance = userWatchedPart(part.id)
 
-                    return (
-                      <div
-                        key={part.id}
-                        onClick={() => {
-                          if (isCurrent) return
-                          if (watchlistInstance) {
-                            navigate(`/media/${watchlistInstance.id}`)
-                          } else {
-                            navigate(`/explore/movie/${part.id}`)
-                          }
-                        }}
-                        className={`flex-shrink-0 w-24 sm:w-32 bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg group ${isCurrent
-                          ? 'border-violet-500 ring-1 ring-violet-500/20 opacity-95'
-                          : 'border-slate-800 hover:border-slate-700/80 cursor-pointer'
-                          }`}
-                      >
-                        <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
-                          {part.poster_path ? (
-                            <img
-                              src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
-                              alt={part.title}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-600 font-bold text-4xl rounded-none">
-                              {part.title.charAt(0)}
-                            </div>
-                          )}
+                      return (
+                        <div key={part.id} className="flex flex-col items-center gap-4 z-10 flex-shrink-0 w-24 sm:w-32">
+                          <div
+                            onClick={() => {
+                              if (isCurrent) return
+                              if (watchlistInstance) {
+                                navigate(`/media/${watchlistInstance.id}`)
+                              } else {
+                                navigate(`/explore/movie/${part.id}`)
+                              }
+                            }}
+                            className={`w-full bg-[#0f1422] border rounded-lg overflow-hidden shadow-lg group transition-all duration-300 ${isCurrent
+                              ? 'border-violet-500 ring-1 ring-violet-500/20 scale-[1.02] shadow-[0_0_15px_rgba(139,92,246,0.15)]'
+                              : 'border-slate-800 hover:border-slate-700/80 hover:scale-[1.02] cursor-pointer'
+                              }`}
+                          >
+                            <div className="aspect-[2/3] w-full bg-slate-950 relative overflow-hidden">
+                              {part.poster_path ? (
+                                <img
+                                  src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
+                                  alt={part.title}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-600 font-bold text-4xl rounded-none">
+                                  {part.title.charAt(0)}
+                                </div>
+                              )}
 
-                          {isCurrent && (
-                            <div className="absolute top-2 left-2 bg-violet-600/90 backdrop-blur text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-md">
-                              CURRENT
+                              {watchlistInstance && (
+                                <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[10px] font-bold py-1 px-1.5 flex items-center justify-center gap-1 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).containerStyle}`}>
+                                  <Check className={`w-3.5 h-3.5 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).iconColor}`} />
+                                  <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
 
-                          {watchlistInstance && (
-                            <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[10px] font-bold py-1 px-1.5 flex items-center justify-center gap-1 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).containerStyle}`}>
-                              <Check className={`w-3.5 h-3.5 ${getCollectionStatusLabelAndStyle(watchlistInstance.status).iconColor}`} />
-                              <span>{getCollectionStatusLabelAndStyle(watchlistInstance.status).label}</span>
-                            </div>
-                          )}
+                          {/* Timeline node */}
+                          <div className="h-5 flex items-center justify-center relative w-full">
+                            {/* Dotted line segment connecting to the next node */}
+                            {index < sortedParts.length - 1 && (
+                              <div 
+                                className="absolute left-1/2 right-auto top-1/2 -translate-y-1/2 h-[3px] z-0 pointer-events-none w-[calc(100%+12px)] sm:w-[calc(100%+20px)]"
+                                style={{
+                                  backgroundImage: 'radial-gradient(circle, rgba(148, 163, 184, 0.3) 2px, transparent 2.5px)',
+                                  backgroundSize: '12px 100%'
+                                }}
+                              />
+                            )}
+
+                            {isCurrent ? (
+                              <div className="w-4 h-4 rounded-full bg-[#c084fc] shadow-[0_0_16px_6px_rgba(168,85,247,0.85),0_0_6px_2px_rgba(168,85,247,0.95)] border border-[#d8b4fe]/40 relative z-20" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-full bg-[#475569]/80 border border-slate-600/60 hover:bg-slate-400 hover:scale-110 transition-all duration-300 relative z-20 cursor-pointer" />
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

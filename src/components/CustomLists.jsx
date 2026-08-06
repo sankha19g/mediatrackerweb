@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal, Search } from 'lucide-react'
+import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal, Search, RotateCw, CheckCircle2 } from 'lucide-react'
 import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList, updateFirebaseList } from '../lib/firebase'
 import { getPosterUrl, fetchTMDB, searchGames } from '../lib/tmdb'
 
@@ -115,6 +115,16 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [popupSearchResults, setPopupSearchResults] = useState([])
   const [searchingPopup, setSearchingPopup] = useState(false)
   const [selectedPopupItems, setSelectedPopupItems] = useState({})
+  const [popupMediaType, setPopupMediaType] = useState('movie')
+
+  // Refresh & Toast states
+  const [refreshingLetterboxd, setRefreshingLetterboxd] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+
+  const showToast = (msg) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(''), 3500)
+  }
 
   // Track viewport width excluding scrollbar (window.innerWidth) to avoid 100vw overflow
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
@@ -217,9 +227,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   // Load suggestions when Add Popup is opened
   useEffect(() => {
     if (showAddPopup) {
-      loadInitialPopupSuggestions()
+      const initialMediaType = activeList?.type === 'tv' ? 'tv' : 'movie'
+      setPopupMediaType(initialMediaType)
+      loadInitialPopupSuggestions(initialMediaType)
     }
-  }, [showAddPopup])
+  }, [showAddPopup, activeList])
 
   const fetchLists = async () => {
     setLoading(true)
@@ -424,13 +436,15 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       setImportStatus('Creating your custom list...')
       
       if (isCloud) {
+        const extraFields = letterboxdUrl.trim() ? { letterboxd_url: letterboxdUrl.trim() } : {}
         const newList = await addFirebaseList(
           user.uid, 
           newListName.trim(), 
           newListDesc.trim(), 
           actualListType, 
           newThumbnailUrl.trim(), 
-          newBannerUrl.trim()
+          newBannerUrl.trim(),
+          extraFields
         )
         if (importedItemIds.length > 0) {
           await updateFirebaseListItems(newList.id, importedItemIds)
@@ -447,6 +461,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
           type: actualListType,
           thumbnail_url: newThumbnailUrl.trim(),
           banner_url: newBannerUrl.trim(),
+          letterboxd_url: letterboxdUrl.trim() || '',
           item_ids: importedItemIds,
           created_at: new Date().toISOString()
         }
@@ -506,7 +521,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     setEditListDesc(activeList.description || '')
     setEditThumbnailUrl(activeList.thumbnail_url || '')
     setEditBannerUrl(activeList.banner_url || '')
-    setEditLetterboxdUrl('')
+    setEditLetterboxdUrl(activeList.letterboxd_url || '')
     setEditBannerPositionPc(activeList.banner_position_pc ?? 50)
     setEditBannerPositionMobile(activeList.banner_position_mobile ?? 50)
     setShowEditModal(true)
@@ -679,6 +694,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         description: editListDesc.trim(),
         thumbnail_url: editThumbnailUrl.trim(),
         banner_url: editBannerUrl.trim(),
+        letterboxd_url: editLetterboxdUrl.trim() || activeList.letterboxd_url || '',
         item_ids: finalItemIds,
         banner_position_pc: editBannerPositionPc,
         banner_position_mobile: editBannerPositionMobile
@@ -711,6 +727,179 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     } finally {
       setImporting(false)
       setImportStatus('')
+    }
+  }
+
+  // Refresh Letterboxd List
+  const handleRefreshLetterboxdList = async (targetList = activeList) => {
+    if (!targetList || !targetList.letterboxd_url) return
+    setRefreshingLetterboxd(true)
+    setError('')
+
+    try {
+      const cleanUrl = targetList.letterboxd_url.trim()
+      let html = ''
+      let fetchSuccess = false
+      const proxies = [
+        (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+        (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+      ]
+
+      for (const proxyFn of proxies) {
+        try {
+          const proxyUrl = proxyFn(cleanUrl)
+          const response = await fetch(proxyUrl)
+          if (!response.ok) continue
+          
+          if (proxyUrl.includes('allorigins')) {
+            const json = await response.json()
+            html = json.contents
+          } else {
+            html = await response.text()
+          }
+          if (html && html.trim().length > 0) {
+            fetchSuccess = true
+            break
+          }
+        } catch (e) {
+          console.error('CORS proxy fetch failed:', e)
+        }
+      }
+
+      if (!fetchSuccess) {
+        throw new Error('Could not fetch Letterboxd list. Ensure the list is public.')
+      }
+
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(html, 'text/html')
+      const items = doc.querySelectorAll('.poster-list li, .poster-grid li, .film-poster, .posteritem')
+      
+      const parsedMovies = []
+      items.forEach(li => {
+        const nameAttr = li.querySelector('[data-item-name]')?.getAttribute('data-item-name') || 
+                         li.getAttribute('data-item-name') ||
+                         li.querySelector('img')?.getAttribute('alt')
+        
+        if (nameAttr) {
+          const yearMatch = nameAttr.match(/\((\d{4})\)$/)
+          const year = yearMatch ? yearMatch[1] : ''
+          const title = year ? nameAttr.replace(/\s*\(\d{4}\)$/, '').trim() : nameAttr.trim()
+          
+          if (title && title.toLowerCase() !== 'pcullen8' && !parsedMovies.some(m => m.title.toLowerCase() === title.toLowerCase())) {
+            parsedMovies.push({ title, year })
+          }
+        }
+      })
+
+      if (parsedMovies.length === 0) {
+        showToast('List is already up to date.')
+        return
+      }
+
+      const searchTMDBItem = async (title, year) => {
+        try {
+          const res = await fetchTMDB('/search/movie', { query: title, ...(year && { year }) })
+          if (res.results && res.results.length > 0) {
+            return res.results[0]
+          }
+        } catch (err) {
+          console.error(`Failed to lookup ${title} on TMDB:`, err)
+        }
+        return null
+      }
+
+      const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+      const resolvedTmdbItems = []
+
+      for (let i = 0; i < parsedMovies.length; i++) {
+        const movie = parsedMovies[i]
+        const resolved = await searchTMDBItem(movie.title, movie.year)
+        if (resolved) {
+          resolvedTmdbItems.push(resolved)
+        }
+        await sleep(350)
+      }
+
+      const itemsToCreate = []
+      const importedItemIds = []
+      
+      for (const tmdbItem of resolvedTmdbItems) {
+        const existing = watchlistItems.find(w => w.type === 'movie' && w.tmdb_id === tmdbItem.id.toString())
+        if (existing) {
+          importedItemIds.push(existing.id)
+          if (onUpdateItem && (existing.status === 'planned' || !existing.status)) {
+            onUpdateItem(existing.id, { status: 'list_only' })
+          }
+        } else {
+          const releaseYear = (tmdbItem.release_date || '').split('-')[0]
+          const getCountryCode = () => {
+            if (tmdbItem.origin_country && Array.isArray(tmdbItem.origin_country) && tmdbItem.origin_country.length > 0) {
+              return tmdbItem.origin_country[0]
+            }
+            return 'US'
+          }
+          itemsToCreate.push({
+            title: tmdbItem.title,
+            type: 'movie',
+            tmdb_id: tmdbItem.id.toString(),
+            poster_path: tmdbItem.poster_path || '',
+            release_year: releaseYear,
+            status: 'list_only',
+            country: getCountryCode(),
+            original_language: tmdbItem.original_language || 'en',
+            review: ''
+          })
+        }
+      }
+
+      if (itemsToCreate.length > 0) {
+        if (onAddItems) {
+          const createdItems = await onAddItems(itemsToCreate)
+          if (createdItems && createdItems.length > 0) {
+            importedItemIds.push(...createdItems.map(i => i.id))
+          }
+        } else if (onAddItem) {
+          for (const item of itemsToCreate) {
+            const created = await onAddItem(item)
+            if (created && created.id) {
+              importedItemIds.push(created.id)
+            }
+          }
+        }
+      }
+
+      const currentSet = new Set(targetList.item_ids || [])
+      const newItemsAdded = importedItemIds.filter(id => !currentSet.has(id))
+
+      if (newItemsAdded.length === 0) {
+        showToast('List is already up to date.')
+      } else {
+        const finalItemIds = Array.from(new Set([...(targetList.item_ids || []), ...importedItemIds]))
+
+        if (isCloud && !targetList.id.startsWith('local_list_')) {
+          await updateFirebaseListItems(targetList.id, finalItemIds)
+        } else {
+          const localListsRaw = localStorage.getItem('local_custom_lists')
+          if (localListsRaw) {
+            const parsed = JSON.parse(localListsRaw)
+            const updated = parsed.map(list => 
+              list.id === targetList.id ? { ...list, item_ids: finalItemIds } : list
+            )
+            localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+          }
+        }
+
+        setLists(prev => prev.map(list => 
+          list.id === targetList.id ? { ...list, item_ids: finalItemIds } : list
+        ))
+
+        showToast(`List Updated (${newItemsAdded.length} new item${newItemsAdded.length > 1 ? 's' : ''} added)`)
+      }
+    } catch (err) {
+      console.error('Failed to refresh Letterboxd list:', err)
+      setError(err.message || 'Failed to refresh list from Letterboxd.')
+    } finally {
+      setRefreshingLetterboxd(false)
     }
   }
 
@@ -985,10 +1174,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   }
 
   // Popup Search Handlers
-  const handlePopupSearch = async (queryText) => {
+  const handlePopupSearch = async (queryText, mediaType = popupMediaType) => {
     setPopupSearchQuery(queryText)
     if (!queryText.trim()) {
-      loadInitialPopupSuggestions()
+      loadInitialPopupSuggestions(mediaType)
       return
     }
     setSearchingPopup(true)
@@ -997,10 +1186,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         const results = await searchGames(queryText)
         setPopupSearchResults(results.map(g => ({ ...g, media_type: 'game' })))
       } else {
-        const endpoint = typeFilter === 'movie' ? '/search/movie' : '/search/tv'
+        const endpoint = mediaType === 'movie' ? '/search/movie' : '/search/tv'
         const data = await fetchTMDB(endpoint, { query: queryText })
         if (data && data.results) {
-          setPopupSearchResults(data.results.map(i => ({ ...i, media_type: typeFilter })))
+          setPopupSearchResults(data.results.map(i => ({ ...i, media_type: mediaType })))
         } else {
           setPopupSearchResults([])
         }
@@ -1012,17 +1201,17 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     }
   }
 
-  const loadInitialPopupSuggestions = async () => {
+  const loadInitialPopupSuggestions = async (mediaType = popupMediaType) => {
     setSearchingPopup(true)
     try {
       if (typeFilter === 'game') {
         const results = await searchGames('')
         setPopupSearchResults(results.map(g => ({ ...g, media_type: 'game' })))
       } else {
-        const endpoint = typeFilter === 'movie' ? '/movie/popular' : '/tv/popular'
+        const endpoint = mediaType === 'movie' ? '/movie/popular' : '/tv/popular'
         const data = await fetchTMDB(endpoint)
         if (data && data.results) {
-          setPopupSearchResults(data.results.map(i => ({ ...i, media_type: typeFilter })))
+          setPopupSearchResults(data.results.map(i => ({ ...i, media_type: mediaType })))
         }
       }
     } catch (err) {
@@ -1030,6 +1219,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     } finally {
       setSearchingPopup(false)
     }
+  }
+
+  const handlePopupMediaTypeChange = (newType) => {
+    setPopupMediaType(newType)
+    handlePopupSearch(popupSearchQuery, newType)
   }
 
   const handleAddItemsToList = async (selectedItemsArray) => {
@@ -1084,8 +1278,9 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       for (const tmdbItem of selectedItemsArray) {
         const isGame = typeFilter === 'game'
         const itemIdStr = tmdbItem.id.toString()
+        const itemType = tmdbItem.media_type || (typeFilter === 'game' ? 'game' : 'movie')
         const existing = watchlistItems.find(w => 
-          w.type === typeFilter && 
+          w.type === itemType && 
           (isGame ? w.id === itemIdStr || w.tmdb_id === itemIdStr : w.tmdb_id === itemIdStr)
         )
 
@@ -1107,7 +1302,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
           itemsToCreate.push({
             title: tmdbItem.title || tmdbItem.name,
-            type: typeFilter,
+            type: itemType,
             tmdb_id: itemIdStr,
             poster_path: tmdbItem.poster_path || tmdbItem.cover_path || '',
             release_year: releaseYear.toString(),
@@ -1332,6 +1527,18 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       <Trash2 className="w-4 h-4" />
                     </button>
 
+                    {/* Refresh Letterboxd List Button */}
+                    {activeList.letterboxd_url && (
+                      <button
+                        onClick={() => handleRefreshLetterboxdList(activeList)}
+                        disabled={refreshingLetterboxd}
+                        className="p-2.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/45 text-slate-350 hover:text-emerald-400 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center disabled:opacity-50"
+                        title="Refresh list from Letterboxd"
+                      >
+                        <RotateCw className={`w-4 h-4 ${refreshingLetterboxd ? 'animate-spin text-emerald-400' : ''}`} />
+                      </button>
+                    )}
+
                     {/* Settings Button */}
                     <button
                       onClick={handleOpenEditModal}
@@ -1361,6 +1568,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   <h2 className="text-xl md:text-3xl font-black text-white drop-shadow-md flex items-center gap-2">
                     {activeList.name}
                   </h2>
+                  {activeList.letterboxd_url && (
+                    <p className="text-xs font-semibold text-emerald-400/90 mt-1 flex items-center gap-1.5 drop-shadow-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Imported from Letterboxd
+                    </p>
+                  )}
                   {activeList.description && (
                     <p className="text-xs text-slate-350 mt-1.5 max-w-2xl drop-shadow-sm italic font-medium">
                       {activeList.description}
@@ -2181,7 +2394,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       {/* Add Items Popup Modal */}
       {showAddPopup && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl relative animate-scale-up">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl py-6 px-4 max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl relative animate-scale-up">
             <button
               type="button"
               onClick={() => {
@@ -2201,8 +2414,38 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             <p className="text-xs text-slate-400 mb-6">
               {activeList.type === 'actor'
                 ? "Select previously removed movies or TV shows to add them back to the actor's list."
-                : `Search TMDB to find and select multiple ${getTypeLabelPlural().toLowerCase()} to add to this list.`}
+                : `Search TMDB to find and select multiple items to add to this list.`}
             </p>
+
+            {/* Movies & TV Shows slider/toggle */}
+            {activeList.type !== 'actor' && typeFilter !== 'game' && (
+              <div className="flex justify-center mb-6">
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => handlePopupMediaTypeChange('movie')}
+                    className={`px-6 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      popupMediaType === 'movie'
+                        ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Movies
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePopupMediaTypeChange('tv')}
+                    className={`px-6 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      popupMediaType === 'tv'
+                        ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    TV Shows
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Search Input Area */}
             {activeList.type !== 'actor' && (
@@ -2211,7 +2454,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   type="text"
                   value={popupSearchQuery}
                   onChange={(e) => handlePopupSearch(e.target.value)}
-                  placeholder={`Search for ${getTypeLabelPlural().toLowerCase()}...`}
+                  placeholder={
+                    typeFilter === 'game'
+                      ? "Search for games..."
+                      : `Search for ${popupMediaType === 'movie' ? 'movies' : 'tv shows'}...`
+                  }
                   className="w-full bg-slate-950 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-550 transition-colors"
                 />
               </div>
@@ -2241,7 +2488,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
                   {(activeList.type === 'actor'
                     ? actorCredits.filter(item => (activeList.removed_ids || []).includes(item.tmdb_id))
                     : popupSearchResults).map((item) => {
@@ -2347,6 +2594,13 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[100] bg-slate-900 border border-emerald-500/40 text-slate-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fade-in backdrop-blur-md">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <span className="text-xs font-bold">{toastMessage}</span>
         </div>
       )}
     </div>

@@ -74,6 +74,21 @@ export default function Sidebar({
 
           <button
             onClick={() => {
+              navigate('/explore_anilist')
+              onClose()
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+              location.pathname === '/explore_anilist'
+                ? 'bg-violet-600 text-white shadow-md shadow-violet-500/10'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+            }`}
+          >
+            <Tv className="w-4 h-4" />
+            <span>Explore AniList</span>
+          </button>
+
+          <button
+            onClick={() => {
               navigate('/explore_tmdb?view=all')
               onClose()
             }}

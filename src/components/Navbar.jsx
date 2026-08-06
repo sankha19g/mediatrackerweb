@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Menu, LogIn, LogOut, Settings as SettingsIcon, Film, Tv, Gamepad, Search, X, ListChecks, Bookmark, Grid3x3, ArrowLeft, Filter } from 'lucide-react'
 import { isFirebaseConfigured } from '../lib/firebase'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -20,11 +20,39 @@ export default function Navbar({
   setIsFilterOpen
 }) {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
-  const isAuthEnabled = isFirebaseConfigured()
+  const [isSearchExpanded, setIsSearchExpanded] = useState(!!searchQuery)
+  const searchRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
 
-  const isExplorePage = location.pathname.startsWith('/explore_tmdb')
+  useEffect(() => {
+    if (searchQuery) {
+      setIsSearchExpanded(true)
+    }
+  }, [searchQuery])
+
+  useEffect(() => {
+    // Collapse search bar when route changes
+    setIsSearchExpanded(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    // Collapse search bar when clicking outside
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setIsSearchExpanded(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  const isAuthEnabled = isFirebaseConfigured()
+
+  const isExplorePage = location.pathname.startsWith('/explore_tmdb') || location.pathname.startsWith('/explore_anilist')
+  const isTMDBExplore = location.pathname.startsWith('/explore_tmdb')
   const isMediaPage = location.pathname.startsWith('/media/') || location.pathname.startsWith('/explore/')
   const isWatchlistPage = location.pathname === '/'
   const shouldShowDesktopSearch = isExplorePage || isMediaPage
@@ -33,7 +61,7 @@ export default function Navbar({
   const params = new URLSearchParams(location.search)
   const isPersonOrCompany = params.has('type')
   const isSearching = searchQuery.trim().length >= 3
-  const showSelectButton = (isExplorePage && (!isPersonOrCompany || isSearching)) || (isWatchlistPage && currentTab !== 'lists')
+  const showSelectButton = (isTMDBExplore && (!isPersonOrCompany || isSearching)) || (isWatchlistPage && currentTab !== 'lists')
 
   if (shouldShowMobileSearch && isMobileSearchOpen) {
     return (
@@ -58,11 +86,11 @@ export default function Navbar({
               onChange={(e) => {
                 const val = e.target.value
                 setSearchQuery(val)
-                if (val.trim().length >= 3 && location.pathname !== '/explore_tmdb' && location.pathname !== '/') {
+                if (val.trim().length >= 3 && location.pathname !== '/explore_tmdb' && location.pathname !== '/explore_anilist' && location.pathname !== '/') {
                   navigate('/explore_tmdb')
                 }
               }}
-              placeholder={isWatchlistPage ? "Search watchlist..." : "Search all Movies, TV Shows, People..."}
+              placeholder={location.pathname === '/explore_anilist' ? "Search anime..." : isWatchlistPage ? "Search watchlist..." : "Search all Movies, TV Shows, People..."}
               className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl pl-9 pr-8 py-2 text-white text-sm placeholder-slate-500 transition-all"
             />
             {searchQuery && (
@@ -135,56 +163,71 @@ export default function Navbar({
           </nav>
         )}
 
-        {/* Search Bar & Multi-Select Action Button for Explore/Media pages */}
-        {shouldShowDesktopSearch && (
-          <div className="hidden md:flex items-center gap-3 flex-1 max-w-xl mx-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setSearchQuery(val)
-                  if (val.trim().length >= 3 && location.pathname !== '/explore_tmdb') {
-                    navigate('/explore_tmdb')
-                  }
-                }}
-                placeholder="Search all Movies, TV Shows, People..."
-                className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl pl-9 pr-8 py-2 text-white text-sm placeholder-slate-500 transition-all"
-              />
-              {searchQuery && (
+        {/* Right Nav Options */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Desktop Expandable Search Bar */}
+          {shouldShowDesktopSearch && (
+            <div ref={searchRef} className="hidden md:flex items-center transition-all duration-300">
+              {isSearchExpanded ? (
+                <div className="relative flex items-center w-64 animate-fade-in">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={searchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setSearchQuery(val)
+                      if (val.trim().length >= 3 && location.pathname !== '/explore_tmdb' && location.pathname !== '/explore_anilist') {
+                        navigate('/explore_tmdb')
+                      }
+                    }}
+                    placeholder={location.pathname === '/explore_anilist' ? "Search anime..." : "Search all Movies, TV Shows, People..."}
+                    className="w-full bg-slate-900/80 border border-slate-800 focus:border-violet-500 focus:outline-none rounded-xl pl-9 pr-8 py-2 text-white text-sm placeholder-slate-500 transition-all shadow-inner"
+                  />
+                  <button
+                    onClick={() => {
+                      if (searchQuery) {
+                        setSearchQuery('')
+                      } else {
+                        setIsSearchExpanded(false)
+                      }
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-800 text-slate-550 hover:text-white transition-all cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                  type="button"
+                  onClick={() => setIsSearchExpanded(true)}
+                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all cursor-pointer flex items-center justify-center shadow-md active:scale-95"
+                  title="Search"
                 >
-                  <X className="w-4 h-4" />
+                  <Search className="w-4 h-4 text-violet-400" />
                 </button>
               )}
             </div>
+          )}
 
+          {/* Select Button on Desktop */}
+          {shouldShowDesktopSearch && showSelectButton && (
+            <button
+              type="button"
+              onClick={() => setIsSelectMode(!isSelectMode)}
+              className={`hidden md:flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap ${
+                isSelectMode
+                  ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
+                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+              }`}
+              title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              <span>{isSelectMode ? 'Cancel' : 'Select'}</span>
+            </button>
+          )}
 
-
-            {showSelectButton && (
-              <button
-                type="button"
-                onClick={() => setIsSelectMode(!isSelectMode)}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all whitespace-nowrap ${
-                  isSelectMode
-                    ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-                title={isSelectMode ? 'Cancel Selection' : 'Select Items'}
-              >
-                <ListChecks className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{isSelectMode ? 'Cancel' : 'Select'}</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Right Nav Options */}
-        <div className="flex items-center gap-3 flex-shrink-0">
           {/* Mobile Search/Filter/Select Action Buttons (Float Right) */}
           {shouldShowMobileSearch && (
             <div className="flex md:hidden items-center gap-1.5 flex-shrink-0">
@@ -196,8 +239,6 @@ export default function Navbar({
               >
                 <Search className="w-3.5 h-3.5 text-violet-400" />
               </button>
-
-
 
               {isWatchlistPage && (
                 <button

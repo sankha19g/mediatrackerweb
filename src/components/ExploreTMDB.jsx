@@ -1786,7 +1786,7 @@ export default function ExploreTMDB({
   isSelectMode,
   setIsSelectMode
 }) {
-  const [searchFilter, setSearchFilter] = useState('all') // 'all' | 'movie' | 'tv' | 'person' | 'company'
+  const [searchFilter, setSearchFilter] = useState('movie_tv') // 'movie_tv' | 'person' | 'company'
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [activeDetail, setActiveDetail] = useState(null) // { type: 'person' | 'company', id: string, name: string }
@@ -2101,11 +2101,10 @@ export default function ExploreTMDB({
   // Filtered search results
   const filteredSearchResults = searchResults.filter(item => {
     const type = getItemMediaType(item)
-    if (searchFilter === 'movie') return type === 'movie'
-    if (searchFilter === 'tv') return type === 'tv'
+    if (searchFilter === 'movie_tv') return type === 'movie' || type === 'tv'
     if (searchFilter === 'person') return type === 'person'
     if (searchFilter === 'company') return type === 'company'
-    return true
+    return false
   })
 
   // Active Hero Slide Item
@@ -2421,28 +2420,12 @@ export default function ExploreTMDB({
             {/* Filter Chips */}
             <div className="flex flex-wrap items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
               <button
-                onClick={() => setSearchFilter('all')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  searchFilter === 'all' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setSearchFilter('movie')}
+                onClick={() => setSearchFilter('movie_tv')}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                  searchFilter === 'movie' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
+                  searchFilter === 'movie_tv' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <Film className="w-3 h-3" /> Movies
-              </button>
-              <button
-                onClick={() => setSearchFilter('tv')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                  searchFilter === 'tv' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Tv className="w-3 h-3" /> TV Shows
+                <Film className="w-3 h-3" /> Movies & TV
               </button>
               <button
                 onClick={() => setSearchFilter('person')}
@@ -2475,59 +2458,10 @@ export default function ExploreTMDB({
               <p className="text-xs text-slate-500 mt-1">Try a different title or keyword.</p>
             </div>
           ) : (
-            searchFilter === 'all' ? (
-              <div className="space-y-10">
-                {/* People Section (circular, 1 single row) */}
-                {searchResults.filter(i => getItemMediaType(i) === 'person').length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <User className="w-4 h-4 text-violet-400" />
-                      People
-                    </h3>
-                    <ScrollableRow>
-                      {searchResults
-                        .filter(i => getItemMediaType(i) === 'person')
-                        .map(item => renderCard(item, true))}
-                    </ScrollableRow>
-                  </div>
-                )}
-
-                {/* Studios Section (square, 1 single row) */}
-                {searchResults.filter(i => getItemMediaType(i) === 'company').length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-violet-400" />
-                      Studios
-                    </h3>
-                    <ScrollableRow>
-                      {searchResults
-                        .filter(i => getItemMediaType(i) === 'company')
-                        .map(item => renderCard(item, true))}
-                    </ScrollableRow>
-                  </div>
-                )}
-
-                {/* Movies & TV Shows Section (grid) */}
-                {searchResults.filter(i => getItemMediaType(i) === 'movie' || getItemMediaType(i) === 'tv').length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <Film className="w-4 h-4 text-violet-400" />
-                      Movies & TV Shows
-                    </h3>
-                    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
-                      {searchResults
-                        .filter(i => getItemMediaType(i) === 'movie' || getItemMediaType(i) === 'tv')
-                        .map(item => renderCard(item, false))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* Single filter grid mode */
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
-                {filteredSearchResults.map(item => renderCard(item, false))}
-              </div>
-            )
+            /* Grid layout mode */
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
+              {filteredSearchResults.map(item => renderCard(item, false))}
+            </div>
           )}
         </div>
       ) : (

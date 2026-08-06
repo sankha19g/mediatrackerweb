@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { 
   isFirebaseConfigured, 
   onFirebaseAuthStateChanged, 
@@ -27,15 +27,38 @@ import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import MediaGrid from './components/MediaGrid'
 import ExploreTMDB from './components/ExploreTMDB'
+import ExploreAnilist from './components/ExploreAnilist'
 import GameExplore from './components/GameExplore'
 import Settings from './components/Settings'
 import Auth from './components/Auth'
-import MediaDetails from './components/MediaDetails'
+import MovieTvDetails from './components/MovieTvDetails'
+import AnimeDetails from './components/AnimeDetails'
 import ImportExport from './components/ImportExport'
 import Sources from './components/Sources'
 import SavedSites from './components/SavedSites'
 import Statistics from './components/Statistics'
 import { PlusCircle, ShieldAlert, CheckCircle, Database } from 'lucide-react'
+
+function MediaDetailsWrapper(props) {
+  const { id } = useParams()
+  const item = props.items.find(i => i.id === id)
+  const isAnime = item?.tmdb_id?.toString().startsWith('anilist_')
+  
+  if (isAnime) {
+    return <AnimeDetails {...props} />
+  }
+  return <MovieTvDetails {...props} />
+}
+
+function ExploreDetailsWrapper(props) {
+  const { tmdb_id } = useParams()
+  const isAnime = tmdb_id?.toString().startsWith('anilist_')
+  
+  if (isAnime) {
+    return <AnimeDetails {...props} />
+  }
+  return <MovieTvDetails {...props} />
+}
 
 export default function App() {
   const [items, setItems] = useState([])
@@ -91,7 +114,7 @@ export default function App() {
   }, [currentTab])
 
   useEffect(() => {
-    const isExplorePage = location.pathname.startsWith('/explore_tmdb')
+    const isExplorePage = location.pathname.startsWith('/explore_tmdb') || location.pathname.startsWith('/explore_anilist')
     const isMediaPage = location.pathname.startsWith('/media/') || location.pathname.startsWith('/explore/')
     const isWatchlistPage = location.pathname === '/'
     if (!isExplorePage && !isMediaPage && !isWatchlistPage) {
@@ -817,7 +840,7 @@ export default function App() {
               } />
               
               <Route path="/media/:id" element={
-                <MediaDetails 
+                <MediaDetailsWrapper 
                   items={items}
                   onUpdateItem={handleUpdateItem}
                   onRemoveItem={handleRemoveItem}
@@ -828,7 +851,7 @@ export default function App() {
               } />
 
               <Route path="/explore/:type/:tmdb_id" element={
-                <MediaDetails 
+                <ExploreDetailsWrapper 
                   items={items}
                   onUpdateItem={handleUpdateItem}
                   onRemoveItem={handleRemoveItem}
@@ -857,6 +880,17 @@ export default function App() {
                   watchedItems={items}
                   onAddItem={handleAddItem}
                   onRemoveItem={handleRemoveItem}
+                />
+              } />
+
+              <Route path="/explore_anilist" element={
+                <ExploreAnilist
+                  watchedItems={items}
+                  onAddItem={handleAddItem}
+                  onRemoveItem={handleRemoveItem}
+                  user={user}
+                  query={globalSearchQuery}
+                  setQuery={setGlobalSearchQuery}
                 />
               } />
 
