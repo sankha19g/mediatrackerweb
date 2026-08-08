@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal, Search, RotateCw, CheckCircle2 } from 'lucide-react'
+import { FolderPlus, Folder, Plus, X, ChevronLeft, Trash2, PlusCircle, FolderOpen, Film, Tv, Gamepad, Info, Settings, Eye, Filter, ArrowUpDown, Check, CheckSquare, Square, SlidersHorizontal, Search, RotateCw, CheckCircle2, ListOrdered, GripVertical, MoveLeft, MoveRight } from 'lucide-react'
 import { isFirebaseConfigured, loadFirebaseLists, addFirebaseList, updateFirebaseListItems, deleteFirebaseList, updateFirebaseList } from '../lib/firebase'
 import { getPosterUrl, fetchTMDB, searchGames } from '../lib/tmdb'
 
@@ -121,6 +121,11 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   const [refreshingLetterboxd, setRefreshingLetterboxd] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
 
+  // Watch Order states
+  const [showWatchOrderModal, setShowWatchOrderModal] = useState(false)
+  const [watchOrderItems, setWatchOrderItems] = useState([])
+  const [draggedIndex, setDraggedIndex] = useState(null)
+
   const showToast = (msg) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(''), 3500)
@@ -141,13 +146,17 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     })
   }, [lists, watchlistItems, onUpdateItem])
 
+  const activeList = lists.find(l => l.id === activeListId)
+
   useEffect(() => {
     setListMediaTypeFilter('all')
     setListSearchQuery('')
-    setListSortBy('newest_added')
-  }, [activeListId])
-
-  const activeList = lists.find(l => l.id === activeListId)
+    if (activeList?.watch_order && activeList.watch_order.length > 0) {
+      setListSortBy('watch_order')
+    } else {
+      setListSortBy('newest_added')
+    }
+  }, [activeListId, activeList?.watch_order])
 
   useEffect(() => {
     if (!activeList || activeList.type !== 'actor' || !activeList.tmdb_person_id) {
@@ -538,9 +547,13 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     try {
       let finalItemIds = [...activeList.item_ids]
 
-      if (editLetterboxdUrl.trim() && activeList?.type === 'movie') {
+      const oldLetterboxdUrl = (activeList.letterboxd_url || '').trim()
+      const newLetterboxdUrl = editLetterboxdUrl.trim()
+      const isUrlChanged = newLetterboxdUrl !== '' && newLetterboxdUrl !== oldLetterboxdUrl
+
+      if (isUrlChanged && activeList?.type === 'movie') {
         setImportStatus('Fetching Letterboxd list...')
-        const cleanUrl = editLetterboxdUrl.trim()
+        const cleanUrl = newLetterboxdUrl
         
         // Use fallback CORS proxies
         let html = ''
@@ -694,7 +707,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         description: editListDesc.trim(),
         thumbnail_url: editThumbnailUrl.trim(),
         banner_url: editBannerUrl.trim(),
-        letterboxd_url: editLetterboxdUrl.trim() || activeList.letterboxd_url || '',
+        letterboxd_url: newLetterboxdUrl,
         item_ids: finalItemIds,
         banner_position_pc: editBannerPositionPc,
         banner_position_mobile: editBannerPositionMobile
@@ -702,7 +715,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
       if (isCloud && !activeList.id.startsWith('local_list_')) {
         await updateFirebaseList(activeList.id, updates)
-        if (editLetterboxdUrl.trim()) {
+        if (isUrlChanged) {
           await updateFirebaseListItems(activeList.id, finalItemIds)
         }
       } else {
@@ -1104,6 +1117,71 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
     setShowImagePicker(false)
   }
 
+  // Watch Order modal handlers
+  const handleOpenWatchOrderModal = () => {
+    if (!activeList) return
+    const allItems = getListItems()
+    
+    let initialOrder = []
+    if (activeList.watch_order && activeList.watch_order.length > 0) {
+      const existingMap = new Map(allItems.map(item => [item.id, item]))
+      activeList.watch_order.forEach(id => {
+        if (existingMap.has(id)) {
+          initialOrder.push(existingMap.get(id))
+          existingMap.delete(id)
+        }
+      })
+      existingMap.forEach(item => initialOrder.push(item))
+    } else {
+      initialOrder = [...allItems]
+    }
+
+    setWatchOrderItems(initialOrder)
+    setShowWatchOrderModal(true)
+  }
+
+  const handleMoveWatchOrderItem = (fromIdx, toIdx) => {
+    if (toIdx < 0 || toIdx >= watchOrderItems.length) return
+    const updated = [...watchOrderItems]
+    const [moved] = updated.splice(fromIdx, 1)
+    updated.splice(toIdx, 0, moved)
+    setWatchOrderItems(updated)
+  }
+
+  const handleSaveWatchOrder = async () => {
+    if (!activeList) return
+    const newWatchOrder = watchOrderItems.map(item => item.id)
+
+    setImporting(true)
+    try {
+      if (isCloud && !activeList.id.startsWith('local_list_')) {
+        await updateFirebaseList(activeList.id, { watch_order: newWatchOrder })
+      } else {
+        const localListsRaw = localStorage.getItem('local_custom_lists')
+        if (localListsRaw) {
+          const parsed = JSON.parse(localListsRaw)
+          const updated = parsed.map(list => 
+            list.id === activeList.id ? { ...list, watch_order: newWatchOrder } : list
+          )
+          localStorage.setItem('local_custom_lists', JSON.stringify(updated))
+        }
+      }
+
+      setLists(prev => prev.map(list => 
+        list.id === activeList.id ? { ...list, watch_order: newWatchOrder } : list
+      ))
+
+      setListSortBy('watch_order')
+      setShowWatchOrderModal(false)
+      showToast('Watch order saved!')
+    } catch (err) {
+      console.error('Failed to save watch order:', err)
+      setError('Failed to save watch order.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   // Bulk remove items
   const handleRemoveItems = async (itemIdsToRemove) => {
     if (!activeListId || itemIdsToRemove.length === 0) return
@@ -1372,6 +1450,16 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
 
   // Sort items in active list
   const sortedListItems = [...filteredListItems].sort((a, b) => {
+    if (listSortBy === 'watch_order') {
+      const order = (activeList?.watch_order && activeList.watch_order.length > 0)
+        ? activeList.watch_order
+        : (activeList?.item_ids || [])
+      const idxA = order.indexOf(a.id)
+      const idxB = order.indexOf(b.id)
+      const posA = idxA !== -1 ? idxA : 999999
+      const posB = idxB !== -1 ? idxB : 999999
+      return posA - posB
+    }
     if (listSortBy === 'release_date') {
       const dateA = a.release_date || a.release_year || '0000'
       const dateB = b.release_date || b.release_year || '0000'
@@ -1574,6 +1662,12 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       Imported from Letterboxd
                     </p>
                   )}
+                  {activeList.watch_order && activeList.watch_order.length > 0 && (
+                    <p className="text-xs font-semibold text-violet-400/90 mt-1 flex items-center gap-1.5 drop-shadow-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                      Watch Order ✔
+                    </p>
+                  )}
                   {activeList.description && (
                     <p className="text-xs text-slate-350 mt-1.5 max-w-2xl drop-shadow-sm italic font-medium">
                       {activeList.description}
@@ -1707,6 +1801,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                           onChange={(e) => { setListSortBy(e.target.value); setShowListFilterDropdown(false); }}
                           className="bg-transparent border-none text-xs text-slate-300 focus:outline-none cursor-pointer w-full pr-1"
                         >
+                          <option value="watch_order" className="bg-slate-950 text-slate-300">Watch Order</option>
                           <option value="newest_added" className="bg-slate-950 text-slate-300">Newest Added</option>
                           <option value="release_date" className="bg-slate-950 text-slate-300">Release Date</option>
                           <option value="vote_average" className="bg-slate-950 text-slate-300">IMDb Rating</option>
@@ -2148,6 +2243,26 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
                       />
                     </div>
                   )}
+
+                  <div className="pt-2 border-t border-slate-800/60 mt-1">
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Custom Watch Order</span>
+                      {activeList?.watch_order && activeList.watch_order.length > 0 && (
+                        <span className="text-[10px] text-emerald-400 font-bold tracking-normal normal-case flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Active ({activeList.watch_order.length} items)
+                        </span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      disabled={importing || rawListItems.length === 0}
+                      onClick={handleOpenWatchOrderModal}
+                      className="w-full flex items-center justify-center gap-2 bg-slate-950 hover:bg-slate-900 border border-violet-500/40 hover:border-violet-500/80 text-violet-300 font-semibold py-2.5 px-4 rounded-xl text-xs transition-all cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed group"
+                    >
+                      <ListOrdered className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
+                      <span>Set Watch Order</span>
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -2187,6 +2302,175 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Set Watch Order Modal */}
+      {showWatchOrderModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 z-[70] animate-fade-in overflow-hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl relative animate-scale-up overflow-hidden">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-950/60 flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400">
+                  <ListOrdered className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
+                    Set Watch Order
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Drag or use arrows to rearrange movies ({watchOrderItems.length} items)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWatchOrderModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid Content Body (Scrollable) */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar">
+              {watchOrderItems.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs">
+                  No movies found in this list to set watch order.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-4">
+                  {watchOrderItems.map((item, index) => {
+                    const releaseDateStr = item.release_date || item.release_year || 'N/A'
+                    const serialNo = index + 1
+
+                    return (
+                      <div
+                        key={item.id}
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggedIndex(index)
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          e.dataTransfer.dropEffect = 'move'
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          if (draggedIndex === null || draggedIndex === index) return
+                          const updated = [...watchOrderItems]
+                          const [dragged] = updated.splice(draggedIndex, 1)
+                          updated.splice(index, 0, dragged)
+                          setWatchOrderItems(updated)
+                          setDraggedIndex(null)
+                        }}
+                        className={`group relative bg-slate-950 border rounded-xl overflow-hidden shadow-lg transition-all duration-200 flex flex-col ${
+                          draggedIndex === index
+                            ? 'opacity-40 border-dashed border-violet-500 scale-95'
+                            : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Poster Image Container */}
+                        <div className="aspect-[2/3] w-full relative overflow-hidden bg-slate-900 cursor-grab active:cursor-grabbing">
+                          <img
+                            src={getPosterUrl(item.poster_path)}
+                            alt={item.title}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                          />
+
+                          {/* Serial No Overlay Badge */}
+                          <div className="absolute top-2 left-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-black px-2.5 py-1 rounded-lg shadow-xl backdrop-blur-md border border-white/20 z-10 flex items-center justify-center min-w-[28px]">
+                            #{serialNo}
+                          </div>
+
+                          {/* Drag Handle Indicator Overlay */}
+                          <div className="absolute top-2 right-2 p-1 rounded-lg bg-slate-950/70 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+                        </div>
+
+                        {/* Info Below Poster */}
+                        <div className="p-2.5 flex-1 flex flex-col justify-between bg-slate-900/90 border-t border-slate-800">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-100 line-clamp-1 group-hover:text-violet-300 transition-colors" title={item.title}>
+                              {item.title}
+                            </h4>
+                            <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                              {releaseDateStr}
+                            </p>
+                          </div>
+
+                          {/* Move Quick Controls */}
+                          <div className="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80">
+                            <button
+                              type="button"
+                              disabled={index === 0}
+                              onClick={() => handleMoveWatchOrderItem(index, index - 1)}
+                              className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white border border-slate-800 transition-all cursor-pointer flex-1 flex items-center justify-center"
+                              title="Move Earlier"
+                            >
+                              <MoveLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={index === watchOrderItems.length - 1}
+                              onClick={() => handleMoveWatchOrderItem(index, index + 1)}
+                              className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white border border-slate-800 transition-all cursor-pointer flex-1 flex items-center justify-center"
+                              title="Move Later"
+                            >
+                              <MoveRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer / Actions Bar */}
+            <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const sortedByRelease = [...watchOrderItems].sort((a, b) => {
+                    const dateA = a.release_date || a.release_year || '0000'
+                    const dateB = b.release_date || b.release_year || '0000'
+                    return dateA.localeCompare(dateB)
+                  })
+                  setWatchOrderItems(sortedByRelease)
+                }}
+                className="text-xs text-slate-400 hover:text-violet-300 font-semibold cursor-pointer underline underline-offset-4"
+              >
+                Sort chronologically
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowWatchOrderModal(false)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-350 font-semibold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={importing || watchOrderItems.length === 0}
+                  onClick={handleSaveWatchOrder}
+                  className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 text-white font-semibold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-violet-600/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save Watch Order</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
         </div>
       )}
 

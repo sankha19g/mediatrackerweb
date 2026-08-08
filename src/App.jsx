@@ -412,16 +412,14 @@ export default function App() {
     try {
       const localData = localStorage.getItem('local_saved_sites')
       if (localData) {
-        setSavedSites(JSON.parse(localData))
+        const parsed = JSON.parse(localData)
+        // Filter out initial default seed sites if present
+        const userSites = parsed.filter(s => !s.id?.startsWith('def_'))
+        setSavedSites(userSites)
+        localStorage.setItem('local_saved_sites', JSON.stringify(userSites))
       } else {
-        const defaultSites = [
-          { id: 'def_netflix', name: 'Netflix', url: 'https://www.netflix.com', image_url: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico', category: 'movies_tvshows', created_at: new Date().toISOString() },
-          { id: 'def_imdb', name: 'IMDb', url: 'https://www.imdb.com', image_url: 'https://m.media-amazon.com/images/G/01/imdb/images-HTML5/myIMDb-share-icon._CB485933890_.png', category: 'movies_tvshows', created_at: new Date().toISOString() },
-          { id: 'def_crunchy', name: 'Crunchyroll', url: 'https://www.crunchyroll.com', image_url: 'https://www.crunchyroll.com/favicons/favicon-32x32.png', category: 'anime', created_at: new Date().toISOString() },
-          { id: 'def_mal', name: 'MyAnimeList', url: 'https://myanimelist.net', image_url: 'https://myanimelist.net/img/sp/icon/apple-touch-icon-120.png', category: 'anime', created_at: new Date().toISOString() }
-        ]
-        setSavedSites(defaultSites)
-        localStorage.setItem('local_saved_sites', JSON.stringify(defaultSites))
+        setSavedSites([])
+        localStorage.setItem('local_saved_sites', JSON.stringify([]))
       }
     } catch (err) {
       console.error('Failed to load local saved sites:', err)
@@ -431,23 +429,7 @@ export default function App() {
   const loadFirebaseSavedSitesData = async (currentUser) => {
     try {
       const dbSites = await loadFirebaseSavedSites(currentUser.uid)
-      if (dbSites.length === 0) {
-        // Pre-fill with default sites in Firestore
-        const defaultSites = [
-          { name: 'Netflix', url: 'https://www.netflix.com', image_url: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico', category: 'movies_tvshows' },
-          { name: 'IMDb', url: 'https://www.imdb.com', image_url: 'https://m.media-amazon.com/images/G/01/imdb/images-HTML5/myIMDb-share-icon._CB485933890_.png', category: 'movies_tvshows' },
-          { name: 'Crunchyroll', url: 'https://www.crunchyroll.com', image_url: 'https://www.crunchyroll.com/favicons/favicon-32x32.png', category: 'anime' },
-          { name: 'MyAnimeList', url: 'https://myanimelist.net', image_url: 'https://myanimelist.net/img/sp/icon/apple-touch-icon-120.png', category: 'anime' }
-        ]
-        const added = []
-        for (const site of defaultSites) {
-          const s = await addFirebaseSavedSite(currentUser.uid, site.name, site.url, site.image_url, site.category)
-          added.push(s)
-        }
-        setSavedSites(added)
-      } else {
-        setSavedSites(dbSites)
-      }
+      setSavedSites(dbSites)
     } catch (err) {
       console.error('Failed to load Firebase saved sites:', err)
       loadLocalSavedSites()
