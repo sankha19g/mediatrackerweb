@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLink, Play, Check, ChevronDown, ChevronUp, Sparkles, ChevronLeft, ChevronRight, Download, Plus, Minus, CheckSquare, Eye, Tag, X, Bookmark, Edit, Award, DollarSign, Lock, Users } from 'lucide-react'
+import { ArrowLeft, Star, Calendar, Clock, Film, Tv, Gamepad, Trash2, ExternalLink, Play, Check, ChevronDown, ChevronUp, Sparkles, ChevronLeft, ChevronRight, Download, Plus, Minus, CheckSquare, Eye, Tag, X, Bookmark, Edit, Award, DollarSign, Lock, Users, Radio, Magnet } from 'lucide-react'
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
 import { fetchOMDBData } from '../lib/omdb'
+import TorrentModal from './TorrentModal'
 
 const getCollectionStatusLabelAndStyle = (status) => {
   switch (status) {
@@ -68,6 +69,60 @@ const isSeasonUnreleased = (s) => {
     if (airDate > today) return true
   }
   return false
+}
+
+const getEpisodeAirDetails = (airDateStr) => {
+  if (!airDateStr) return { formattedDate: null, daysRemaining: null, isUpcoming: false, countdownLabel: null }
+  
+  try {
+    const [year, month, day] = airDateStr.split('-').map(Number)
+    if (!year || !month || !day) return { formattedDate: airDateStr, daysRemaining: null, isUpcoming: false, countdownLabel: null }
+    
+    const airDate = new Date(year, month - 1, day)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const diffTime = airDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    const formattedDate = airDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+    
+    if (diffDays > 1) {
+      return {
+        formattedDate,
+        daysRemaining: diffDays,
+        isUpcoming: true,
+        countdownLabel: `${diffDays} days remaining`
+      }
+    } else if (diffDays === 1) {
+      return {
+        formattedDate,
+        daysRemaining: 1,
+        isUpcoming: true,
+        countdownLabel: 'Releases tomorrow'
+      }
+    } else if (diffDays === 0) {
+      return {
+        formattedDate,
+        daysRemaining: 0,
+        isUpcoming: true,
+        countdownLabel: 'Releases today'
+      }
+    } else {
+      return {
+        formattedDate,
+        daysRemaining: null,
+        isUpcoming: false,
+        countdownLabel: null
+      }
+    }
+  } catch (e) {
+    return { formattedDate: airDateStr, daysRemaining: null, isUpcoming: false, countdownLabel: null }
+  }
 }
 
 const CastCarousel = ({ cast, navigate, type, tmdbId, seasons = [], currentSeasonNum = 1, currentEpisodesWatched = 0 }) => {
@@ -563,12 +618,14 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     item = stateItem.status === 'list_only' ? { ...stateItem, isExplore: true } : stateItem
   }
 
-  // If it's an explore route, we construct a stub item
+  // If it's an explore route, we check if it's already in our items
   if (!item && tmdb_id && type) {
-    // Check if it's actually in our items anyway
     const existing = items.find(i => i.tmdb_id && i.tmdb_id.toString() === tmdb_id.toString() && i.type === type && i.status !== 'list_only')
+    const listOnlyItem = items.find(i => i.tmdb_id && i.tmdb_id.toString() === tmdb_id.toString() && i.type === type && i.status === 'list_only')
     if (existing) {
       item = existing
+    } else if (listOnlyItem) {
+      item = { ...listOnlyItem, isExplore: true }
     } else {
       item = { tmdb_id, type, isExplore: true }
     }
@@ -582,6 +639,8 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const [isTrailerOpen, setIsTrailerOpen] = useState(false)
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
   const [isDownloadOpen, setIsDownloadOpen] = useState(false)
+  const [isTorrentModalOpen, setIsTorrentModalOpen] = useState(false)
+  const [torrentModalProvider, setTorrentModalProvider] = useState('yts')
   const [activeSource, setActiveSource] = useState('')
   const [collectionDetails, setCollectionDetails] = useState(null)
   const [loadingCollection, setLoadingCollection] = useState(false)
@@ -833,6 +892,31 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     if (!onAddItem) return
     const releaseYearStr = releaseYear || ''
     const itemType = item?.type || type
+    const targetTmdbId = tmdbId ? tmdbId.toString() : (item.tmdb_id ? item.tmdb_id.toString() : '')
+
+    // Check if an item already exists in items
+    const existingMatch = items.find(i => 
+      (item.id && i.id === item.id) ||
+      (i.tmdb_id && targetTmdbId && i.tmdb_id.toString() === targetTmdbId && i.type === itemType && (itemType !== 'tv' || (i.season_number || 1) === selectedSeason))
+    )
+
+    if (existingMatch && onUpdateItem) {
+      const updates = {
+        status: addStatus,
+        review: addReview.trim(),
+        rating: item.rating || 0,
+        ...(itemType === 'tv' && {
+          season_number: selectedSeason,
+          season_progress: addStatus === 'watching' ? { [selectedSeason]: 1 } : { [selectedSeason]: 0 },
+          ...(addStatus === 'completed' && seasons.length > 0 && {
+            seasons_watched: seasons.map(s => s.season_number)
+          })
+        })
+      }
+      await onUpdateItem(existingMatch.id, updates)
+      navigate(`/media/${existingMatch.id}`, { replace: true })
+      return
+    }
 
     // Country detection logic
     const getCountryCode = () => {
@@ -848,7 +932,7 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     const newItem = {
       title: title,
       type: itemType,
-      tmdb_id: tmdbId ? tmdbId.toString() : '',
+      tmdb_id: targetTmdbId,
       poster_path: posterPath,
       release_year: releaseYearStr,
       status: addStatus,
@@ -954,6 +1038,36 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
   const backdropUrl = details?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${details.backdrop_path}`
     : null;
+
+  // Alternate portrait poster for mobile screens (distinct from main movie poster)
+  const mobileBannerUrl = (() => {
+    const posters = details?.images?.posters || []
+    const cleanMainPoster = (posterPath || details?.poster_path || '')
+      .split('?')[0]
+      .replace(/^.*\/t\/p\/[^\/]+/, '')
+      .replace(/^\//, '')
+
+    // Filter out posters that match the main movie poster
+    const alternatePosters = posters.filter(p => {
+      if (!p.file_path) return false
+      const cleanPath = p.file_path.replace(/^\//, '')
+      return cleanPath !== cleanMainPoster
+    })
+
+    // Sort alternate posters: prioritize English or neutral language, then highest vote count
+    const sorted = [...alternatePosters].sort((a, b) => {
+      const aEn = a.iso_639_1 === 'en' || !a.iso_639_1 ? 1 : 0
+      const bEn = b.iso_639_1 === 'en' || !b.iso_639_1 ? 1 : 0
+      if (aEn !== bEn) return bEn - aEn
+      return (b.vote_count || 0) - (a.vote_count || 0)
+    })
+
+    const selectedPoster = sorted[0]
+    if (selectedPoster?.file_path) {
+      return `https://image.tmdb.org/t/p/original${selectedPoster.file_path}`
+    }
+    return backdropUrl
+  })()
 
   const synopsis = details?.overview || 'No synopsis available.'
   const runtime = details?.runtime || (details?.episode_run_time ? details.episode_run_time[0] : null)
@@ -1269,6 +1383,26 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           className="w-5 h-5 object-contain rounded flex-shrink-0"
         />
       )
+    },
+    {
+      id: '1337x',
+      label: '1337x',
+      show: true,
+      url: (() => {
+        const cleanQuery = (title || '')
+          .replace(/[:\-_/\\#?]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .split(' ')
+          .join('+')
+        return `https://1337x.to/search/${cleanQuery}/1/`
+      })(),
+      borderClass: 'border-red-600/30 hover:border-red-500',
+      badge: (
+        <span className="w-5 h-5 rounded bg-red-600/20 text-red-400 font-black text-[10px] flex items-center justify-center border border-red-500/30">
+          1337
+        </span>
+      )
     }
   ]
   const totalEpisodes = seasons.reduce((sum, s) => sum + (s.episode_count || 0), 0)
@@ -1569,6 +1703,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     const nextEpIndex = currentEpisodesWatched
     const nextEp = seasonEpisodes[nextEpIndex]
 
+    const currentEpAirInfo = currentEp ? getEpisodeAirDetails(currentEp.air_date) : null
+    const nextEpAirInfo = nextEp ? getEpisodeAirDetails(nextEp.air_date) : null
+
     const wrapperClass = deviceType === 'mobile' ? 'block lg:hidden mb-6' : 'hidden lg:block'
 
     return (
@@ -1760,10 +1897,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   <Eye className="w-3 h-3 text-violet-400" />
                   Current Episode {currentEp ? `(S${currentSeasonNum} E${currentEp.episode_number})` : ''}
                 </span>
-                {currentEp?.vote_average > 0 && (
-                  <span className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    {currentEp.vote_average.toFixed(1)}
+                {currentEpAirInfo?.isUpcoming && (
+                  <span className="text-[10px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                    <Clock className="w-3 h-3 text-amber-400 animate-pulse" />
+                    {currentEpAirInfo.countdownLabel}
                   </span>
                 )}
               </div>
@@ -1808,11 +1945,21 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     <h4 className="text-sm font-extrabold text-white leading-snug line-clamp-1">
                       {currentEp?.name || `Episode ${currentEpisodesWatched}`}
                     </h4>
-                    <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
-                      {currentEp?.air_date && <span>{currentEp.air_date.split('-')[0]}</span>}
+                    <div className="text-[11px] text-slate-400 font-semibold flex items-center flex-wrap gap-2 mt-1">
+                      {currentEpAirInfo?.formattedDate ? (
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <Calendar className="w-3.5 h-3.5 text-violet-400" />
+                          <span>{currentEpAirInfo.formattedDate}</span>
+                        </span>
+                      ) : currentEp?.air_date ? (
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <Calendar className="w-3.5 h-3.5 text-violet-400" />
+                          <span>{currentEp.air_date}</span>
+                        </span>
+                      ) : null}
                       {currentEp?.runtime && (
                         <>
-                          <span>·</span>
+                          {(currentEpAirInfo?.formattedDate || currentEp?.air_date) && <span className="text-slate-600">·</span>}
                           <span>{currentEp.runtime}m</span>
                         </>
                       )}
@@ -1830,10 +1977,10 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                   <Play className="w-3 h-3 text-emerald-400" />
                   Up Next {nextEp ? `(S${currentSeasonNum} E${nextEp.episode_number})` : ''}
                 </span>
-                {nextEp?.vote_average > 0 && (
-                  <span className="text-[11px] font-extrabold text-amber-400 flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    {nextEp.vote_average.toFixed(1)}
+                {nextEpAirInfo?.isUpcoming && (
+                  <span className="text-[10px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                    <Clock className="w-3 h-3 text-amber-400 animate-pulse" />
+                    {nextEpAirInfo.countdownLabel}
                   </span>
                 )}
               </div>
@@ -1864,11 +2011,21 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
                     <h4 className="text-sm font-extrabold text-white leading-snug line-clamp-1">
                       {nextEp.name}
                     </h4>
-                    <div className="text-[11px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
-                      {nextEp.air_date && <span>{nextEp.air_date.split('-')[0]}</span>}
+                    <div className="text-[11px] text-slate-400 font-semibold flex items-center flex-wrap gap-2 mt-1">
+                      {nextEpAirInfo?.formattedDate ? (
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{nextEpAirInfo.formattedDate}</span>
+                        </span>
+                      ) : nextEp.air_date ? (
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{nextEp.air_date}</span>
+                        </span>
+                      ) : null}
                       {nextEp.runtime && (
                         <>
-                          <span>·</span>
+                          {(nextEpAirInfo?.formattedDate || nextEp.air_date) && <span className="text-slate-600">·</span>}
                           <span>{nextEp.runtime}m</span>
                         </>
                       )}
@@ -1893,9 +2050,9 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
     <div className="animate-fade-in pb-16">
       {/* Hero Header Banner */}
       <div className="w-screen relative left-1/2 -translate-x-1/2 overflow-hidden border-0 bg-black shadow-2xl mb-8">
-        {/* Backdrop background image aligned right with smooth left-to-right & bottom fade gradients */}
+        {/* DESKTOP Landscape Backdrop (hidden on mobile, visible on md+) */}
         {backdropUrl && (
-          <div className="absolute right-0 top-0 bottom-0 w-full md:w-3/4 lg:w-2/3 h-full z-0 overflow-hidden pointer-events-none">
+          <div className="hidden md:block absolute right-0 top-0 bottom-0 w-full md:w-3/4 lg:w-2/3 h-full z-0 overflow-hidden pointer-events-none">
             <img
               src={backdropUrl}
               alt="Backdrop"
@@ -1905,6 +2062,20 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
             <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent z-10" />
             {/* Bottom Fade Overlay */}
             <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/85 to-transparent z-10" />
+          </div>
+        )}
+
+        {/* MOBILE Portrait Alternate Poster Banner (visible on mobile, hidden on md+) */}
+        {mobileBannerUrl && (
+          <div className="block md:hidden absolute inset-0 w-full h-full z-0 overflow-hidden pointer-events-none">
+            <img
+              src={mobileBannerUrl}
+              alt="Mobile Portrait Banner"
+              className="w-full h-full object-cover object-top opacity-75"
+            />
+            {/* Light atmospheric gradient so banner is vivid while text stays legible */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/90 z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black via-black/80 to-transparent z-10" />
           </div>
         )}
 
@@ -2122,6 +2293,21 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
 
             </div>
           </div>
+
+          {/* TORRENT Button */}
+          {(item?.type === 'movie' || item?.type === 'tv' || type === 'movie' || type === 'tv') && (
+            <button
+              onClick={() => {
+                setTorrentModalProvider((item?.type === 'tv' || type === 'tv') ? 'torrentio' : 'yts')
+                setIsTorrentModalOpen(true)
+              }}
+              className="w-full bg-[#0a0a0a] border border-violet-500/30 hover:border-violet-400/60 bg-gradient-to-br from-violet-950/30 via-slate-900/60 to-transparent py-3 px-4 rounded-2xl flex items-center justify-center gap-2.5 text-xs font-black text-violet-300 hover:text-white transition-all shadow-md cursor-pointer group"
+              title="Search Torrents & Streams"
+            >
+              <Magnet className="w-4 h-4 text-violet-400 group-hover:scale-110 group-hover:rotate-12 transition-transform" />
+              <span>Torrent</span>
+            </button>
+          )}
 
           {/* POSTER & BANNER Buttons */}
           {(item?.type === 'movie' || item?.type === 'tv') && (
@@ -2799,14 +2985,16 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
               </button>
               <button
                 onClick={async () => {
-                  if (item.isExplore) {
+                  if (item.isExplore && !item.id) {
                     await handleAddItemFromDetails()
-                  } else if (onUpdateItem) {
+                  } else if (onUpdateItem && item.id) {
                     const updates = { status: addStatus, review: addReview.trim() }
                     if ((item.type || type) === 'tv' && addStatus === 'completed' && seasons.length > 0) {
                       updates.seasons_watched = seasons.map(s => s.season_number)
                     }
                     await onUpdateItem(item.id, updates)
+                  } else {
+                    await handleAddItemFromDetails()
                   }
                   setIsStatusModalOpen(false)
                 }}
@@ -2936,6 +3124,20 @@ export default function MediaDetails({ items, onUpdateItem, onRemoveItem, onAddI
           </div>
         </div>
       )}
+
+      {/* Torrents & Streams Modal (YTS & Torrentio) */}
+      <TorrentModal
+        isOpen={isTorrentModalOpen}
+        onClose={() => setIsTorrentModalOpen(false)}
+        initialProvider={torrentModalProvider}
+        title={title}
+        year={releaseYear}
+        type={item?.type || type || 'movie'}
+        imdbId={imdbId || omdbData?.imdbID || ''}
+        seasons={seasons}
+        currentSeasonNum={currentSeasonNum}
+        currentEpisodeNum={currentEpisodesWatched || 1}
+      />
 
     </div>
   )

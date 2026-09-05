@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { Star, Calendar, Trash2, Edit, MessageSquare, Tag, Eye, Filter, ArrowUpDown, Film, Tv, Gamepad, CheckSquare, Square, Check, X, ListChecks, Sparkles, RefreshCw, Globe, MapPin, Bookmark } from 'lucide-react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { Calendar, Trash2, Filter, ArrowUpDown, Film, Tv, Gamepad, Check, X, ListChecks, Sparkles, RefreshCw, Globe, MapPin, Bookmark, List, LayoutGrid, Plus, Minus } from 'lucide-react'
 import { getPosterUrl, fetchTMDB, isTMDBConfigured } from '../lib/tmdb'
+import { fetchAnilistAnimeDetails } from '../lib/anilist'
 import CustomLists from './CustomLists'
 import { isFirebaseConfigured, loadFirebaseLists, updateFirebaseListItems } from '../lib/firebase'
 
@@ -115,12 +116,16 @@ export default function MediaGrid({
   const [statusFilter, setStatusFilter] = useState(() => {
     return localStorage.getItem('cinelog_status_filter') || 'all'
   })
+  const [watchingViewMode, setWatchingViewMode] = useState(() => {
+    return localStorage.getItem('cinelog_watching_view_mode') || 'list'
+  })
+  const [episodeDetailsCache, setEpisodeDetailsCache] = useState({})
+  const fetchedEpisodeKeysRef = useRef(new Set())
   const [localSearchQuery, setLocalSearchQuery] = useState('')
   const searchQuery = propSearchQuery !== undefined ? propSearchQuery : localSearchQuery
   const setSearchQuery = propSetSearchQuery !== undefined ? propSetSearchQuery : setLocalSearchQuery
 
   const [sortBy, setSortBy] = useState('newest_added') // 'newest_added', 'release_date'
-  const [editingItem, setEditingItem] = useState(null)
   const [listsSubTab, setListsSubTab] = useState('movie_tv') // 'movie_tv', 'actors'
   
   const [localShowFilterDropdown, setLocalShowFilterDropdown] = useState(false)
@@ -134,6 +139,7 @@ export default function MediaGrid({
 
   const [activeListId, setActiveListId] = useState(null)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setYearFilter('all')
     setLanguageFilter('all')
@@ -154,6 +160,7 @@ export default function MediaGrid({
       setActiveListId(null)
     }
   }, [statusFilter])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-fill missing original_language and country for existing items with tmdb_id
   useEffect(() => {
@@ -203,7 +210,7 @@ export default function MediaGrid({
               onUpdateItem(item.id, updates)
             }
           }
-        } catch (err) {
+        } catch {
           // Ignore individual fetch errors
         }
       }
@@ -246,9 +253,6 @@ export default function MediaGrid({
     fetchLists()
   }, [typeFilter, user, isCloud])
 
-  // Edit Dialog States
-  const [editStatus, setEditStatus] = useState('completed')
-  const [editReview, setEditReview] = useState('')
 
   // Get all unique release years from items of the active type
   const availableYears = Array.from(new Set(
@@ -323,13 +327,30 @@ export default function MediaGrid({
     }
     return Array.from(map.values()).map(seasons => {
       const sorted = [...seasons].sort((a, b) => (a.season_number || 1) - (b.season_number || 1))
+
+      const getItemTimestamp = (s) => {
+        if (!s) return 0
+        const dateVal = s.updated_at || s._sortDate || s.watched_at || s.created_at || 0
+        const t = new Date(dateVal).getTime()
+        return isNaN(t) ? 0 : t
+      }
+
       const rep = sorted.reduce((a, b) =>
-        new Date(b.watched_at || b.created_at || 0) > new Date(a.watched_at || a.created_at || 0) ? b : a
+        getItemTimestamp(b) > getItemTimestamp(a) ? b : a
         , sorted[0])
+
+      const latestUpdateMs = sorted.reduce((max, s) => {
+        const t = getItemTimestamp(s)
+        return t > max ? t : max
+      }, 0)
+      const latestUpdateDate = latestUpdateMs > 0 ? new Date(latestUpdateMs).toISOString() : (rep.updated_at || rep.watched_at || rep.created_at)
+
       const completedSeasons = sorted.filter(s => s.status === 'completed')
       const watchingSeasons = sorted.filter(s => s.status === 'watching' || s.status === 'pending')
       const totalSeasons = sorted.length
-      const activeSeason = watchingSeasons[0] || sorted.find(s => s.status !== 'completed') || sorted[sorted.length - 1]
+      const activeSeason = (watchingSeasons.length > 0
+        ? watchingSeasons.reduce((a, b) => getItemTimestamp(b) > getItemTimestamp(a) ? b : a, watchingSeasons[0])
+        : null) || sorted.find(s => s.status !== 'completed') || sorted[sorted.length - 1]
 
       const getEpProgress = (s) => {
         if (!s || !s.season_progress) return 0
@@ -365,17 +386,20 @@ export default function MediaGrid({
         _activeEpisodeProgress: activeEpisodeProgress,
         _pct: pct,
         virtualStatus: showStatus,
-        _sortDate: rep.watched_at || rep.created_at
+        _sortDate: latestUpdateDate,
+        updated_at: latestUpdateDate,
+        watched_at: latestUpdateDate
       }
     })
   }
 
   // Filter virtual items based on status, year, language, and local query search
-  // For TV: group by show first, then filter on the aggregated status
-  const rawTVItems = typeFilter === 'tv'
-    ? items.filter(item => item.type === 'tv' && item.status !== 'list_only')
+  // For TV & Series: group by show first, then filter on the aggregated status
+  const isSeriesType = typeFilter === 'tv' || typeFilter === 'anime'
+  const rawTVItems = isSeriesType
+    ? items.filter(item => (item.type === 'tv' || item.type === 'anime') && item.status !== 'list_only')
     : []
-  const groupedTVShows = typeFilter === 'tv' ? groupTVShows(rawTVItems) : []
+  const groupedTVShows = isSeriesType ? groupTVShows(rawTVItems) : []
 
   const matchLanguage = (itemLang, targetFilter) => {
     if (targetFilter === 'all') return true
@@ -383,7 +407,7 @@ export default function MediaGrid({
     return itemLang.toLowerCase().trim() === targetFilter.toLowerCase().trim()
   }
 
-  const filteredItems = typeFilter === 'tv'
+  const filteredItems = isSeriesType
     ? groupedTVShows
       .filter(show => statusFilter === 'all' || show.virtualStatus === statusFilter)
       .filter(show => yearFilter === 'all' || show.release_year === yearFilter)
@@ -393,7 +417,11 @@ export default function MediaGrid({
       .filter(show => show.title.toLowerCase().includes(searchQuery.toLowerCase()))
     : items
       .filter(item => item.type === typeFilter && item.status !== 'list_only')
-      .map(item => ({ ...item, virtualStatus: item.status || 'planned' }))
+      .map(item => ({
+        ...item,
+        virtualStatus: item.status || 'planned',
+        _sortDate: item.updated_at || item.watched_at || item.created_at
+      }))
       .filter(item => statusFilter === 'all' || item.virtualStatus === statusFilter)
       .filter(item => yearFilter === 'all' || item.release_year === yearFilter)
       .filter(item => matchLanguage(item.original_language, languageFilter))
@@ -401,10 +429,25 @@ export default function MediaGrid({
       .filter(item => !hideIndian || normalizeCountryName(item.country) !== 'India')
       .filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()))
 
+  const getItemDateMs = (item) => {
+    if (!item) return 0
+    const val = item.updated_at || item._sortDate || item.watched_at || item.created_at || 0
+    const t = new Date(val).getTime()
+    return isNaN(t) ? 0 : t
+  }
+
   // Sort items
   const sortedItems = [...filteredItems].sort((a, b) => {
+    // When viewing watching list, sort by most recently updated/watched
+    if (statusFilter === 'watching') {
+      const diff = getItemDateMs(b) - getItemDateMs(a)
+      if (diff !== 0) return diff
+      const dateA = a.release_date || a.release_year || '0000'
+      const dateB = b.release_date || b.release_year || '0000'
+      return dateB.localeCompare(dateA)
+    }
     if (sortBy === 'newest_added') {
-      return new Date(b._sortDate || b.watched_at || b.created_at) - new Date(a._sortDate || a.watched_at || a.created_at)
+      return getItemDateMs(b) - getItemDateMs(a)
     }
     if (sortBy === 'release_date') {
       const dateA = a.release_date || a.release_year || '0000'
@@ -421,25 +464,226 @@ export default function MediaGrid({
     return sortedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE)
   }, [sortedItems, currentPage])
 
-  const openEditDialog = (item) => {
-    setEditingItem(item)
-    setEditStatus(item.status || 'completed')
-    setEditReview(item.review || '')
-  }
+  // Fetch season & episode details for watching list items
+  useEffect(() => {
+    if (statusFilter !== 'watching' || watchingViewMode !== 'list') return
+    if (!paginatedItems || paginatedItems.length === 0) return
 
-  const handleUpdateConfirm = () => {
-    if (!editingItem) return
-    const statusChanged = editingItem.status !== editStatus
-    if (statusChanged) {
-      if (!window.confirm(`Are you sure you want to move "${editingItem.title}" to ${editStatus}?`)) {
-        return
+    let isMounted = true
+
+    const fetchBatchDetails = async () => {
+      for (const item of paginatedItems) {
+        if (!isMounted) break
+
+        const isAnime = item.tmdb_id?.toString().startsWith('anilist_') || item.id?.toString().startsWith('anilist_')
+        const isTV = item.type === 'tv' || item.type === 'anime' || (isAnime && item.type !== 'movie')
+
+        if (isAnime) {
+          const anilistNumericId = (item.tmdb_id || item.id || '').toString().replace('anilist_', '')
+          const cacheKey = `anime_${anilistNumericId}`
+          if (fetchedEpisodeKeysRef.current.has(cacheKey)) continue
+          fetchedEpisodeKeysRef.current.add(cacheKey)
+
+          try {
+            const data = await fetchAnilistAnimeDetails(anilistNumericId)
+            if (data && isMounted) {
+              setEpisodeDetailsCache(prev => ({
+                ...prev,
+                [cacheKey]: {
+                  episodesCount: data.episodes || data.rawEpisodes || (data.streamingEpisodes?.length || 12),
+                  streamingEpisodes: data.streamingEpisodes || []
+                }
+              }))
+            }
+          } catch {
+            // Ignore fetch error, fallback to defaults
+          }
+        } else if (isTV && item.tmdb_id && isTMDBConfigured()) {
+          const activeSeason = item._activeSeason || item._allSeasons?.[0] || item
+          const seasonNum = activeSeason?.season_number || 1
+          const cacheKey = `tv_${item.tmdb_id}_s${seasonNum}`
+          if (fetchedEpisodeKeysRef.current.has(cacheKey)) continue
+          fetchedEpisodeKeysRef.current.add(cacheKey)
+
+          try {
+            const data = await fetchTMDB(`/tv/${item.tmdb_id}/season/${seasonNum}`)
+            if (data && isMounted) {
+              setEpisodeDetailsCache(prev => ({
+                ...prev,
+                [cacheKey]: {
+                  episodesCount: data.episodes?.length || 0,
+                  episodes: data.episodes || []
+                }
+              }))
+            }
+          } catch {
+            // Ignore fetch error, fallback to defaults
+          }
+        }
       }
     }
-    onUpdateItem(editingItem.id, {
-      status: editStatus,
-      review: editReview.trim()
-    })
-    setEditingItem(null)
+
+    fetchBatchDetails()
+
+    return () => {
+      isMounted = false
+    }
+  }, [statusFilter, watchingViewMode, paginatedItems])
+
+  const resolveItemEpisodeInfo = (item) => {
+    const isAnime = item.tmdb_id?.toString().startsWith('anilist_') || item.id?.toString().startsWith('anilist_')
+    const isTV = item.type === 'tv' || item.type === 'anime' || (isAnime && item.type !== 'movie')
+    const isMovie = item.type === 'movie' && !isTV
+
+    if (isMovie) {
+      return {
+        isMovie: true,
+        isAnime,
+        seasonNum: null,
+        totalSeasons: 1,
+        currentEpNum: 1,
+        rawEpProgress: 1,
+        totalSeasonEps: 1,
+        progressPct: 100,
+        epName: 'Feature Film',
+        displayTitle: item.title
+      }
+    }
+
+    const activeSeason = item._activeSeason || item._allSeasons?.[0] || item
+    const seasonNum = activeSeason?.season_number || item.season_number || 1
+    const totalSeasons = item._totalSeasons || 1
+
+    const currentEpProgress = isAnime
+      ? (typeof item.season_progress === 'number'
+          ? item.season_progress
+          : (item.season_progress?.[1] !== undefined ? Number(item.season_progress[1]) : (item._activeEpisodeProgress || 0)))
+      : (item._activeEpisodeProgress !== undefined ? item._activeEpisodeProgress : (
+          typeof activeSeason?.season_progress === 'number'
+            ? activeSeason.season_progress
+            : (activeSeason?.season_progress?.[seasonNum] !== undefined ? Number(activeSeason.season_progress[seasonNum]) : 0)
+        ))
+
+    let totalSeasonEps
+    let epName = ''
+
+    if (isAnime) {
+      const anilistNumericId = (item.tmdb_id || item.id || '').toString().replace('anilist_', '')
+      const cacheKey = `anime_${anilistNumericId}`
+      const cached = episodeDetailsCache[cacheKey]
+      if (cached) {
+        totalSeasonEps = cached.episodesCount || item.episodes || 12
+        const targetEpNum = Math.max(1, currentEpProgress || 1)
+        const streamingList = cached.streamingEpisodes || []
+        const match = streamingList.find(se => {
+          const m = se.title?.match(/Episode\s+(\d+)/i)
+          return m ? parseInt(m[1], 10) === targetEpNum : false
+        }) || streamingList[targetEpNum - 1]
+
+        if (match?.title) {
+          const prefixRegex = new RegExp(`^Episode\\s+${targetEpNum}\\s*(?:-|:|–|—)?\\s*`, 'i')
+          const cleaned = match.title.replace(prefixRegex, '').trim()
+          epName = cleaned || match.title
+        }
+      } else {
+        totalSeasonEps = item.episodes || 12
+      }
+    } else {
+      const cacheKey = `tv_${item.tmdb_id || item.id}_s${seasonNum}`
+      const cached = episodeDetailsCache[cacheKey]
+      if (cached) {
+        totalSeasonEps = cached.episodesCount || activeSeason?.episodes || 12
+        const targetEpNum = Math.max(1, currentEpProgress || 1)
+        const epObj = (cached.episodes || []).find(e => e.episode_number === targetEpNum)
+        if (epObj?.name) {
+          epName = epObj.name
+        }
+      } else {
+        totalSeasonEps = activeSeason?.episodes || 12
+      }
+    }
+
+    const targetEpNum = Math.max(1, currentEpProgress || 1)
+    if (!epName) {
+      epName = `Episode ${targetEpNum}`
+    }
+
+    const progressPct = totalSeasonEps > 0
+      ? Math.min(100, Math.round((currentEpProgress / totalSeasonEps) * 100))
+      : 0
+
+    return {
+      isMovie: false,
+      isAnime,
+      seasonNum,
+      totalSeasons,
+      currentEpNum: targetEpNum,
+      rawEpProgress: currentEpProgress,
+      totalSeasonEps,
+      progressPct,
+      epName,
+      displayTitle: item.title
+    }
+  }
+
+  const handleQuickEpisodeChange = async (e, item, delta) => {
+    e.stopPropagation()
+    const isAnime = item.tmdb_id?.toString().startsWith('anilist_') || item.id?.toString().startsWith('anilist_')
+    const isTV = item.type === 'tv' || item.type === 'anime' || (isAnime && item.type !== 'movie')
+
+    if (isAnime) {
+      const anilistNumericId = (item.tmdb_id || item.id || '').toString().replace('anilist_', '')
+      const cacheKey = `anime_${anilistNumericId}`
+      const cached = episodeDetailsCache[cacheKey]
+      const maxEps = cached?.episodesCount || item.episodes || 12
+
+      const currentProgress = typeof item.season_progress === 'number'
+        ? item.season_progress
+        : (item.season_progress?.[1] !== undefined ? Number(item.season_progress[1]) : (item._activeEpisodeProgress || 0))
+
+      const newProgress = Math.max(0, currentProgress + delta)
+      const cappedProgress = Math.min(newProgress, maxEps)
+      const isCompleted = cappedProgress >= maxEps
+
+      const now = new Date().toISOString()
+      await onUpdateItem(item.id, {
+        season_progress: { 1: cappedProgress },
+        status: isCompleted ? 'completed' : 'watching',
+        updated_at: now,
+        watched_at: now
+      })
+    } else if (isTV) {
+      const activeSeason = item._activeSeason || item._allSeasons?.[0] || item
+      const seasonNum = activeSeason?.season_number || 1
+      const cacheKey = `tv_${item.tmdb_id || item.id}_s${seasonNum}`
+      const cached = episodeDetailsCache[cacheKey]
+      const maxEps = cached?.episodesCount || activeSeason?.episodes || 24
+
+      const currentProgress = item._activeEpisodeProgress !== undefined ? item._activeEpisodeProgress : (
+        typeof activeSeason?.season_progress === 'number'
+          ? activeSeason.season_progress
+          : (activeSeason?.season_progress?.[seasonNum] !== undefined ? Number(activeSeason.season_progress[seasonNum]) : 0)
+      )
+
+      const newProgress = Math.max(0, currentProgress + delta)
+      const cappedProgress = Math.min(newProgress, maxEps)
+      const isCompleted = cappedProgress >= maxEps
+
+      const existingProgress = typeof activeSeason?.season_progress === 'object' && activeSeason?.season_progress !== null
+        ? { ...activeSeason.season_progress }
+        : {}
+
+      const now = new Date().toISOString()
+      await onUpdateItem(activeSeason.id, {
+        season_progress: {
+          ...existingProgress,
+          [seasonNum]: cappedProgress
+        },
+        status: isCompleted ? 'completed' : 'watching',
+        updated_at: now,
+        watched_at: now
+      })
+    }
   }
 
   const handleToggleSelectAll = () => {
@@ -585,17 +829,6 @@ export default function MediaGrid({
     if (typeFilter === 'tv') return 'TV Shows'
     if (typeFilter === 'lists') return 'Custom Lists'
     return 'Games'
-  }
-
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case 'completed': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-      case 'watching': return 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-      case 'pending': return 'bg-rose-500/10 text-rose-450 border-rose-500/20'
-      case 'planned': return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-      case 'backlog': return 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-    }
   }
 
   const getStatusLabel = (status) => {
@@ -796,7 +1029,9 @@ export default function MediaGrid({
                       onChange={(e) => setSortBy(e.target.value)}
                       className="bg-transparent border-none text-xs text-slate-300 focus:outline-none cursor-pointer w-full pr-1"
                     >
-                      <option value="newest_added" className="bg-slate-955 text-slate-300">Newest Added</option>
+                      <option value="newest_added" className="bg-slate-955 text-slate-300">
+                        {statusFilter === 'watching' ? 'Last Updated' : 'Newest Added'}
+                      </option>
                       <option value="release_date" className="bg-slate-955 text-slate-300">Release Date</option>
                     </select>
                   </div>
@@ -891,113 +1126,330 @@ export default function MediaGrid({
         </div>
       </div>
 
-      {/* Watch Status Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
-        {[
-          { id: 'all', label: 'All Items' },
-          { id: 'completed', label: typeFilter === 'game' ? 'Beaten' : 'Completed' },
-          { id: 'watching', label: typeFilter === 'game' ? 'Playing' : 'Watching' },
-          { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
-          { id: 'planned', label: 'Planned' },
-          typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
-          typeFilter === 'game' && { id: 'lists', label: 'Saved Games List' }
-        ].filter(Boolean).map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setStatusFilter(tab.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${statusFilter === tab.id
-                ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
-                : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Watch Status Tabs & View Switcher */}
+      <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-800 pb-3">
+        <div className="flex gap-2 overflow-x-auto py-0.5">
+          {[
+            { id: 'all', label: 'All Items' },
+            { id: 'completed', label: typeFilter === 'game' ? 'Beaten' : 'Completed' },
+            { id: 'watching', label: typeFilter === 'game' ? 'Playing' : 'Watching' },
+            { id: 'pending', label: typeFilter === 'tv' ? 'Up Next' : 'Pending' },
+            { id: 'planned', label: 'Planned' },
+            typeFilter !== 'tv' && { id: 'backlog', label: 'Backlog' },
+            typeFilter === 'game' && { id: 'lists', label: 'Saved Games List' }
+          ].filter(Boolean).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${statusFilter === tab.id
+                  ? 'bg-violet-600/10 border-violet-500/30 text-violet-400'
+                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* View Switcher: List vs Grid (Watching ONLY) */}
+        {statusFilter === 'watching' && (
+          <div className="flex items-center bg-slate-900/90 border border-slate-800 p-0.5 rounded-lg flex-shrink-0">
+            <button
+              onClick={() => {
+                setWatchingViewMode('list')
+                localStorage.setItem('cinelog_watching_view_mode', 'list')
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${watchingViewMode === 'list'
+                  ? 'bg-violet-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+                }`}
+              title="List View"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">List</span>
+            </button>
+            <button
+              onClick={() => {
+                setWatchingViewMode('grid')
+                localStorage.setItem('cinelog_watching_view_mode', 'grid')
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${watchingViewMode === 'grid'
+                  ? 'bg-violet-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+                }`}
+              title="Grid View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Grid</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Media Grid Cards */}
+      {/* Media Items */}
       {sortedItems.length > 0 ? (
         <>
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
-            {paginatedItems.map((item) => {
-              // For grouped TV shows, the id is the rep item's id;
-              // for multi-select we match on the representative id
-              const cardId = item.id
-              const isTV = item.type === 'tv'
-              const activeSeason = item._activeSeason
-              const pct = item._pct ?? 0
-              const completedSeas = item._completedSeasons ?? 0
-              const remainingSeas = item._remainingSeasons ?? 0
-              const totalSeas = item._totalSeasons ?? 0
-              const activeSeasonNum = activeSeason?.season_number ?? item.season_number ?? null
+          {statusFilter === 'watching' && watchingViewMode === 'list' ? (
+            /* Watching Series / Media List View */
+            <div className="space-y-3">
+              {paginatedItems.map((item) => {
+                const cardId = item.id
+                const isTV = item.type === 'tv' || item.type === 'anime'
+                const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
+                const info = resolveItemEpisodeInfo(item)
 
-              // For TV groups, navigate via the ACTIVE (in-progress) season item
-              const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
-
-              return (
-                <div
-                  key={cardId}
-                  className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${isSelectMode && selectedIds.includes(cardId)
-                      ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
-                      : 'border-slate-800 hover:border-slate-700/50'
-                    }`}
-                >
-                  {/* Card Image */}
+                return (
                   <div
-                    className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
-                    onClick={() => {
-                      if (isSelectMode) {
-                        setSelectedIds(prev =>
-                          prev.includes(cardId)
-                            ? prev.filter(id => id !== cardId)
-                            : [...prev, cardId]
-                        )
-                      } else {
-                        onItemClick && onItemClick(navItem)
-                      }
-                    }}
+                    key={cardId}
+                    className={`bg-slate-900/60 hover:bg-slate-900 border rounded-xl p-3 sm:p-4 transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-violet-900/10 group flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ${
+                      isSelectMode && selectedIds.includes(cardId)
+                        ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
+                        : 'border-slate-800 hover:border-slate-700/80'
+                    }`}
                   >
-                    <img
-                      src={getPosterUrl(item.poster_path)}
-                      alt={item.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      loading="lazy"
-                    />
+                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                      {/* Select Mode Checkbox */}
+                      {isSelectMode && (
+                        <div
+                          className="cursor-pointer flex-shrink-0"
+                          onClick={() => {
+                            setSelectedIds(prev =>
+                              prev.includes(cardId)
+                                ? prev.filter(id => id !== cardId)
+                                : [...prev, cardId]
+                            )
+                          }}
+                        >
+                          {selectedIds.includes(cardId) ? (
+                            <div className="bg-violet-600 border border-violet-500 text-white p-1 rounded-md shadow">
+                              <Check className="w-3.5 h-3.5 font-bold" />
+                            </div>
+                          ) : (
+                            <div className="bg-slate-950 border border-slate-700 p-1 rounded-md">
+                              <div className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                    {/* Multi-select check icon */}
-                    {isSelectMode && (
-                      <div className="absolute top-2 right-2 z-20">
-                        {selectedIds.includes(cardId) ? (
-                          <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
-                            <Check className="w-3.5 h-3.5 font-bold" />
-                          </div>
-                        ) : (
-                          <div className="bg-slate-950/80 border border-slate-750 text-slate-450 p-1.5 rounded-lg shadow-lg">
-                            <div className="w-3 h-3 rounded-sm border border-slate-500" />
+                      {/* Poster */}
+                      <div
+                        className="w-16 sm:w-20 aspect-[2/3] flex-shrink-0 rounded-lg overflow-hidden relative bg-slate-950 border border-slate-800/80 shadow-md cursor-pointer group/poster"
+                        onClick={() => {
+                          if (isSelectMode) {
+                            setSelectedIds(prev =>
+                              prev.includes(cardId)
+                                ? prev.filter(id => id !== cardId)
+                                : [...prev, cardId]
+                            )
+                          } else {
+                            onItemClick && onItemClick(navItem)
+                          }
+                        }}
+                      >
+                        <img
+                          src={getPosterUrl(item.poster_path)}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover/poster:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        {!info.isMovie && info.totalSeasons > 1 && (
+                          <div className="absolute top-1 right-1 bg-slate-950/90 border border-slate-700/60 text-[9px] font-black px-1.5 py-0.5 rounded text-slate-300 tracking-wider">
+                            S{info.seasonNum}
                           </div>
                         )}
                       </div>
-                    )}
 
-                    {/* Status Overlay at the bottom */}
-                    {!isSelectMode && (
-                      <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1.5 px-2 flex items-center justify-center gap-1 ${getStatusOverlayStyle(item.virtualStatus).containerStyle}`}>
-                        <Check className={`w-3.5 h-3.5 ${getStatusOverlayStyle(item.virtualStatus).iconColor}`} />
-                        <span>{getStatusLabel(item.virtualStatus)}</span>
+                      {/* Info & Progress */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between gap-1.5 sm:gap-2">
+                        {/* Title & Badges */}
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4
+                              className="text-sm sm:text-base font-bold text-white group-hover:text-violet-400 transition-colors cursor-pointer truncate max-w-lg"
+                              onClick={() => {
+                                if (isSelectMode) {
+                                  setSelectedIds(prev =>
+                                    prev.includes(cardId)
+                                      ? prev.filter(id => id !== cardId)
+                                      : [...prev, cardId]
+                                  )
+                                } else {
+                                  onItemClick && onItemClick(navItem)
+                                }
+                              }}
+                            >
+                              {info.displayTitle}
+                            </h4>
+
+                            {!info.isMovie ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-violet-600/15 text-violet-300 border border-violet-500/30 whitespace-nowrap">
+                                Season {info.seasonNum}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-600/15 text-sky-300 border border-sky-500/30 whitespace-nowrap">
+                                Movie
+                              </span>
+                            )}
+
+                            {info.isAnime && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 whitespace-nowrap">
+                                Anime
+                              </span>
+                            )}
+
+                            {info.totalSeasons > 1 && (
+                              <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
+                                ({info.totalSeasons} Seasons)
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Episode Number and Name */}
+                          <div className="flex items-center gap-2 mt-1 text-xs">
+                            {!info.isMovie ? (
+                              <>
+                                <span className="font-bold text-violet-300 bg-violet-950/60 border border-violet-800/60 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
+                                  Ep {info.currentEpNum}
+                                </span>
+                                <span className="text-slate-200 font-medium truncate max-w-md">
+                                  {info.epName}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-slate-400 text-xs font-medium">
+                                {item.release_year ? `${item.release_year} • ` : ''}Feature Film
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Season Progress Bar */}
+                        <div className="w-full pt-1">
+                          <div className="flex items-center justify-end text-[11px] font-semibold mb-1">
+                            <span className="text-slate-300">
+                              {!info.isMovie ? (
+                                <>
+                                  <span className="text-white font-bold">{info.rawEpProgress}</span> / {info.totalSeasonEps} eps
+                                  <span className="text-violet-400 font-bold ml-1.5">({info.progressPct}%)</span>
+                                </>
+                              ) : (
+                                <span className="text-violet-400 font-bold">Currently Watching</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-950 border border-slate-800/80 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-400 rounded-full transition-all duration-300 shadow-sm shadow-violet-500/30"
+                              style={{ width: `${info.isMovie ? 50 : info.progressPct}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                    )}
+                    </div>
 
-                    {/* TV: total seasons badge top-right (non-select mode) */}
-                    {isTV && !isSelectMode && totalSeas > 1 && (
-                      <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
-                        {totalSeas}S
+                    {/* Quick Episode Adjustment Controls (+ and - only) */}
+                    {!info.isMovie && (
+                      <div className="flex items-center gap-1.5 self-end sm:self-center flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60 w-full sm:w-auto justify-end">
+                        <button
+                          onClick={(e) => handleQuickEpisodeChange(e, item, -1)}
+                          disabled={info.rawEpProgress <= 0}
+                          title="Previous Episode (-1)"
+                          className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-750 border border-slate-700/60 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleQuickEpisodeChange(e, item, 1)}
+                          title="Next Episode (+1)"
+                          className="w-8 h-8 rounded-lg bg-violet-600 hover:bg-violet-500 border border-violet-500 text-white flex items-center justify-center transition-all shadow-md shadow-violet-600/20 active:scale-95 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          ) : (
+            /* Media Grid Cards */
+            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3 sm:gap-6">
+              {paginatedItems.map((item) => {
+                // For grouped TV shows, the id is the rep item's id;
+                // for multi-select we match on the representative id
+                const cardId = item.id
+                const isTV = item.type === 'tv'
+                const totalSeas = item._totalSeasons ?? 0
+
+                // For TV groups, navigate via the ACTIVE (in-progress) season item
+                const navItem = isTV ? (item._activeSeason || item._allSeasons?.[0] || item) : item
+
+                return (
+                  <div
+                    key={cardId}
+                    className={`group relative bg-slate-900/30 border rounded-xl overflow-hidden shadow-lg transition-all duration-300 ${isSelectMode && selectedIds.includes(cardId)
+                        ? 'border-violet-500 ring-2 ring-violet-500/20 shadow-violet-500/5'
+                        : 'border-slate-800 hover:border-slate-700/50'
+                      }`}
+                  >
+                    {/* Card Image */}
+                    <div
+                      className="aspect-[2/3] w-full relative overflow-hidden bg-slate-950 cursor-pointer"
+                      onClick={() => {
+                        if (isSelectMode) {
+                          setSelectedIds(prev =>
+                            prev.includes(cardId)
+                              ? prev.filter(id => id !== cardId)
+                              : [...prev, cardId]
+                          )
+                        } else {
+                          onItemClick && onItemClick(navItem)
+                        }
+                      }}
+                    >
+                      <img
+                        src={getPosterUrl(item.poster_path)}
+                        alt={item.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+
+                      {/* Multi-select check icon */}
+                      {isSelectMode && (
+                        <div className="absolute top-2 right-2 z-20">
+                          {selectedIds.includes(cardId) ? (
+                            <div className="bg-violet-650 border border-violet-500 text-white p-1 rounded-lg shadow-lg">
+                              <Check className="w-3.5 h-3.5 font-bold" />
+                            </div>
+                          ) : (
+                            <div className="bg-slate-950/80 border border-slate-750 text-slate-450 p-1.5 rounded-lg shadow-lg">
+                              <div className="w-3 h-3 rounded-sm border border-slate-500" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Status Overlay at the bottom */}
+                      {!isSelectMode && (
+                        <div className={`absolute inset-x-0 bottom-0 backdrop-blur-md border-t text-[11px] font-bold py-1.5 px-2 flex items-center justify-center gap-1 ${getStatusOverlayStyle(item.virtualStatus).containerStyle}`}>
+                          <Check className={`w-3.5 h-3.5 ${getStatusOverlayStyle(item.virtualStatus).iconColor}`} />
+                          <span>{getStatusLabel(item.virtualStatus)}</span>
+                        </div>
+                      )}
+
+                      {/* TV: total seasons badge top-right (non-select mode) */}
+                      {isTV && !isSelectMode && totalSeas > 1 && (
+                        <div className="absolute top-2 right-2 bg-slate-950/90 backdrop-blur border border-slate-700/60 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md tracking-wider">
+                          {totalSeas}S
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 pt-8">
@@ -1037,69 +1489,6 @@ export default function MediaGrid({
               ? 'Try clearing your search keyword.'
               : `Your log for ${getTypeLabel().toLowerCase()} is empty.`}
           </p>
-        </div>
-      )}
-
-      {/* Editing Dialog Modal */}
-      {editingItem && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
-            <h3 className="text-xl font-bold text-white mb-1">
-              Edit Logged Details
-            </h3>
-            <p className="text-xs text-slate-400 mb-6">
-              Update rating, notes or watch progress for <strong className="text-slate-200">{editingItem.title}</strong>.
-            </p>
-
-            <div className="space-y-4">
-              {/* Status Option */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  Watch/Play Status
-                </label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500"
-                >
-                  <option value="completed">Completed</option>
-                  <option value="watching">Active (Watching/Playing)</option>
-                  <option value="pending">{(editingItem?.type === 'tv' || typeFilter === 'tv') ? 'Up Next' : 'Pending'}</option>
-                  <option value="planned">Planned (Watchlist)</option>
-                  {(editingItem?.type !== 'tv' && typeFilter !== 'tv') && <option value="backlog">Planned (Backlog)</option>}
-                </select>
-              </div>
-
-              {/* Review area */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  My Notes & Review
-                </label>
-                <textarea
-                  rows="4"
-                  value={editReview}
-                  onChange={(e) => setEditReview(e.target.value)}
-                  placeholder="Update your review..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-violet-500 resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setEditingItem(null)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl text-sm transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateConfirm}
-                className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold py-2.5 rounded-xl text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

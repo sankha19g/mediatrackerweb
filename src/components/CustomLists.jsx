@@ -134,9 +134,10 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
   // Track viewport width excluding scrollbar (window.innerWidth) to avoid 100vw overflow
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
 
-  // Auto-migrate existing custom list items with 'planned' status to 'list_only'
+  // Auto-migrate existing legacy custom list items with 'planned' status to 'list_only' (runs once)
   useEffect(() => {
-    if (lists.length === 0 || watchlistItems.length === 0 || !onUpdateItem) return
+    const migrationKey = 'legacy_custom_list_planned_migrated_v2'
+    if (localStorage.getItem(migrationKey) || lists.length === 0 || watchlistItems.length === 0 || !onUpdateItem) return
 
     const customListItemIds = new Set(lists.flatMap(list => list.item_ids))
     watchlistItems.forEach(item => {
@@ -144,6 +145,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
         onUpdateItem(item.id, { status: 'list_only' })
       }
     })
+    localStorage.setItem(migrationKey, 'true')
   }, [lists, watchlistItems, onUpdateItem])
 
   const activeList = lists.find(l => l.id === activeListId)
@@ -182,6 +184,7 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
             const type = item.media_type || (item.title ? 'movie' : 'tv')
             
             const existing = watchlistItems.find(w => w.type === type && w.tmdb_id === item.id.toString() && w.status !== 'list_only')
+            const anyMatch = existing || watchlistItems.find(w => w.type === type && w.tmdb_id === item.id.toString())
             
             uniqueWorks.push({
               id: `tmdb_${type}_${item.id}`,
@@ -193,8 +196,8 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
               release_date: item.release_date || item.first_air_date || '',
               vote_average: item.vote_average,
               popularity: item.popularity,
-              status: existing ? existing.status : 'list_only',
-              watchlist_item_id: existing ? existing.id : null
+              status: existing ? existing.status : (anyMatch ? anyMatch.status : 'list_only'),
+              watchlist_item_id: anyMatch ? anyMatch.id : null
             })
           }
         }
@@ -1052,9 +1055,33 @@ export default function CustomLists({ typeFilter, user, watchlistItems, onItemCl
       const removed = activeList.removed_ids || []
       return actorCredits.filter(item => !removed.includes(item.tmdb_id))
     }
-    return activeList.item_ids
-      .map(id => watchlistItems.find(w => w.id === id))
-      .filter(Boolean) // Filter out items that might have been deleted from main log
+    return (activeList.item_ids || [])
+      .map(id => {
+        let item = watchlistItems.find(w => w.id === id)
+        if (!item) {
+          item = watchlistItems.find(w => w.tmdb_id && w.tmdb_id.toString() === id.toString())
+        }
+        if (item && item.tmdb_id) {
+          // If the user marked this movie as watched/watching, reflect that status in the list!
+          const activeItem = watchlistItems.find(w => 
+            w.type === item.type && 
+            w.tmdb_id && 
+            w.tmdb_id.toString() === item.tmdb_id.toString() && 
+            w.status !== 'list_only'
+          )
+          if (activeItem) {
+            return {
+              ...item,
+              status: activeItem.status,
+              rating: activeItem.rating || item.rating,
+              review: activeItem.review || item.review,
+              watched_at: activeItem.watched_at || item.watched_at
+            }
+          }
+        }
+        return item
+      })
+      .filter(Boolean)
   }
 
   const rawListItems = getListItems()

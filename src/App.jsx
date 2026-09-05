@@ -21,7 +21,9 @@ import {
   loadFirebaseSavedSites,
   addFirebaseSavedSite,
   deleteFirebaseSavedSite,
-  updateFirebaseSavedSite
+  updateFirebaseSavedSite,
+  loadAllFirebaseLists,
+  updateFirebaseListItems
 } from './lib/firebase'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
@@ -33,11 +35,183 @@ import Settings from './components/Settings'
 import Auth from './components/Auth'
 import MovieTvDetails from './components/MovieTvDetails'
 import AnimeDetails from './components/AnimeDetails'
+import AnimePlayer from './components/AnimePlayer'
 import ImportExport from './components/ImportExport'
 import Sources from './components/Sources'
 import SavedSites from './components/SavedSites'
 import Statistics from './components/Statistics'
 import { PlusCircle, ShieldAlert, CheckCircle, Database } from 'lucide-react'
+
+export const getMediaItemKey = (item) => {
+  if (!item) return ''
+  const type = item.type || 'movie'
+  if (type === 'tv' && item.season_number) {
+    return `tv_${item.tmdb_id || item.id}_s${item.season_number}`
+  }
+  if (item.tmdb_id) {
+    return `${type}_${item.tmdb_id}`
+  }
+  return item.id || `title_${item.title}_${item.release_year}`
+}
+
+const STATUS_PRIORITY = {
+  completed: 10,
+  watching: 9,
+  planned: 8,
+  pending: 7,
+  backlog: 6,
+  onhold: 5,
+  paused: 5,
+  dropped: 4,
+  list_only: 1
+}
+
+export const getDeduplicatedItems = (itemsList) => {
+  if (!Array.isArray(itemsList)) return []
+  const map = new Map()
+
+  for (const item of itemsList) {
+    const key = getMediaItemKey(item)
+    if (!map.has(key)) {
+      map.set(key, item)
+    } else {
+      const existing = map.get(key)
+      const existingPriority = STATUS_PRIORITY[existing.status] || (existing.status ? 5 : 0)
+      const itemPriority = STATUS_PRIORITY[item.status] || (item.status ? 5 : 0)
+
+      let winner, loser
+      if (itemPriority > existingPriority) {
+        winner = item
+        loser = existing
+      } else if (existingPriority > itemPriority) {
+        winner = existing
+        loser = item
+      } else {
+        const itemDate = new Date(item.updated_at || item.watched_at || item.created_at || 0).getTime()
+        const existingDate = new Date(existing.updated_at || existing.watched_at || existing.created_at || 0).getTime()
+        if (itemDate >= existingDate) {
+          winner = item
+          loser = existing
+        } else {
+          winner = existing
+          loser = item
+        }
+      }
+
+      const latestUpdateMs = Math.max(
+        new Date(item.updated_at || item.watched_at || item.created_at || 0).getTime() || 0,
+        new Date(existing.updated_at || existing.watched_at || existing.created_at || 0).getTime() || 0
+      )
+      const latestDateStr = latestUpdateMs > 0 ? new Date(latestUpdateMs).toISOString() : (winner.updated_at || winner.watched_at || winner.created_at)
+
+      const merged = {
+        ...loser,
+        ...winner,
+        rating: winner.rating || loser.rating || 0,
+        review: winner.review || loser.review || '',
+        poster_path: winner.poster_path || loser.poster_path || '',
+        seasons_watched: Array.isArray(winner.seasons_watched) && winner.seasons_watched.length > 0 
+          ? winner.seasons_watched 
+          : (loser.seasons_watched || []),
+        season_progress: winner.season_progress || loser.season_progress || null,
+        updated_at: latestDateStr,
+        watched_at: winner.watched_at || latestDateStr
+      }
+      map.set(key, merged)
+    }
+  }
+
+  return Array.from(map.values())
+}
+
+export const consolidateMediaItems = (rawItems, allLists = []) => {
+  if (!Array.isArray(rawItems)) return { cleanedItems: [], duplicatesToDelete: [], updatedItems: [], listsToUpdate: [] }
+
+  const customListItemIds = new Set(allLists.flatMap(l => l.item_ids || []))
+  const groups = new Map()
+
+  for (const item of rawItems) {
+    const key = getMediaItemKey(item)
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key).push(item)
+  }
+
+  const cleanedItems = []
+  const duplicatesToDelete = []
+  const updatedItems = []
+  const idReplacements = new Map()
+
+  for (const [, itemsInGroup] of groups.entries()) {
+    if (itemsInGroup.length === 1) {
+      cleanedItems.push(itemsInGroup[0])
+      continue
+    }
+
+    const scoredItems = itemsInGroup.map(item => {
+      let score = 0
+      const priority = STATUS_PRIORITY[item.status] || (item.status ? 5 : 0)
+      score += priority * 10
+      if (customListItemIds.has(item.id)) score += 50
+      if (item.id && !item.id.toString().startsWith('local_')) score += 5
+      const time = new Date(item.watched_at || item.created_at || 0).getTime()
+      return { item, score, time }
+    })
+
+    scoredItems.sort((a, b) => (b.score - a.score) || (b.time - a.time))
+    const canonical = scoredItems[0].item
+    const others = scoredItems.slice(1).map(s => s.item)
+
+    const bestStatusItem = itemsInGroup.find(i => i.status && i.status !== 'list_only')
+    const finalStatus = bestStatusItem ? bestStatusItem.status : canonical.status
+    const bestReview = itemsInGroup.find(i => i.review && i.review.trim())?.review || canonical.review || ''
+    const bestRating = itemsInGroup.find(i => Number(i.rating) > 0)?.rating || canonical.rating || 0
+
+    const mergedCanonical = {
+      ...canonical,
+      status: finalStatus,
+      review: bestReview,
+      rating: bestRating,
+      watched_at: bestStatusItem?.watched_at || canonical.watched_at || new Date().toISOString()
+    }
+
+    cleanedItems.push(mergedCanonical)
+    updatedItems.push(mergedCanonical)
+
+    for (const other of others) {
+      duplicatesToDelete.push(other.id)
+      idReplacements.set(other.id, canonical.id)
+    }
+  }
+
+  const listsToUpdate = []
+  if (idReplacements.size > 0 && allLists.length > 0) {
+    for (const list of allLists) {
+      const currentIds = list.item_ids || []
+      let changed = false
+      const newIds = []
+      for (const id of currentIds) {
+        if (idReplacements.has(id)) {
+          const replacement = idReplacements.get(id)
+          if (!newIds.includes(replacement)) {
+            newIds.push(replacement)
+          }
+          changed = true
+        } else {
+          if (!newIds.includes(id)) {
+            newIds.push(id)
+          }
+        }
+      }
+      if (changed) {
+        listsToUpdate.push({ listId: list.id, itemIds: newIds })
+      }
+    }
+  }
+
+  return { cleanedItems, duplicatesToDelete, updatedItems, listsToUpdate }
+}
 
 function MediaDetailsWrapper(props) {
   const { id } = useParams()
@@ -128,13 +302,22 @@ export default function App() {
   const loadLocalItems = () => {
     try {
       const localData = localStorage.getItem('local_media_items')
+      const localListsRaw = localStorage.getItem('local_custom_lists')
+      const localLists = localListsRaw ? JSON.parse(localListsRaw) : []
+
       if (localData) {
         const parsedData = JSON.parse(localData)
-        const uniqueData = Array.from(new Map(parsedData.map(i => {
-          const key = i.type === 'tv' && i.season_number ? `${i.tmdb_id}_s${i.season_number}` : (i.tmdb_id || i.id)
-          return [key, i]
-        })).values())
-        setItems(uniqueData)
+        const { cleanedItems, listsToUpdate } = consolidateMediaItems(parsedData, localLists)
+        setItems(cleanedItems)
+        localStorage.setItem('local_media_items', JSON.stringify(cleanedItems))
+
+        if (listsToUpdate.length > 0) {
+          const updatedLists = localLists.map(list => {
+            const match = listsToUpdate.find(u => u.listId === list.id)
+            return match ? { ...list, item_ids: match.itemIds } : list
+          })
+          localStorage.setItem('local_custom_lists', JSON.stringify(updatedLists))
+        }
       } else {
         setItems([])
       }
@@ -147,8 +330,31 @@ export default function App() {
   const loadFirebaseItemsData = async (currentUser) => {
     setLoading(true)
     try {
-      const data = await loadFirebaseItems(currentUser.uid)
-      setItems(data || [])
+      const [data, allLists] = await Promise.all([
+        loadFirebaseItems(currentUser.uid),
+        loadAllFirebaseLists(currentUser.uid).catch(err => {
+          console.warn('Failed to load lists for consolidation:', err)
+          return []
+        })
+      ])
+
+      const { cleanedItems, duplicatesToDelete, updatedItems, listsToUpdate } = consolidateMediaItems(data || [], allLists || [])
+      setItems(cleanedItems)
+
+      if (duplicatesToDelete.length > 0) {
+        duplicatesToDelete.forEach(id => deleteFirebaseItem(id).catch(e => console.warn('Could not delete duplicate item:', e)))
+      }
+      if (updatedItems.length > 0) {
+        updatedItems.forEach(item => updateFirebaseItem(item.id, {
+          status: item.status,
+          rating: item.rating,
+          review: item.review,
+          watched_at: item.watched_at
+        }).catch(e => console.warn('Could not update consolidated item in DB:', e)))
+      }
+      if (listsToUpdate.length > 0) {
+        listsToUpdate.forEach(({ listId, itemIds }) => updateFirebaseListItems(listId, itemIds).catch(e => console.warn('Could not update list items:', e)))
+      }
       
       // Perform automated migration if local data exists
       const localData = localStorage.getItem('local_media_items')
@@ -545,6 +751,29 @@ export default function App() {
   const handleAddItem = async (newItem) => {
     const isCloud = isFirebaseConfigured() && user
     const dateNow = new Date().toISOString()
+    const targetKey = getMediaItemKey(newItem)
+
+    // Check if an item for this media already exists in items
+    const existing = items.find(i => getMediaItemKey(i) === targetKey)
+
+    if (existing) {
+      const typeLabel = newItem.type === 'movie' ? 'movie' : newItem.type === 'tv' ? 'TV show' : 'game'
+      const targetStatus = newItem.status || (existing.status !== 'list_only' ? existing.status : 'completed')
+      const successMsg = `"${newItem.title || existing.title}" ${typeLabel} updated to ${targetStatus}.`
+
+      const updates = {
+        ...newItem,
+        status: targetStatus,
+        watched_at: newItem.watched_at || dateNow
+      }
+      delete updates.id
+      delete updates.user_id
+
+      await handleUpdateItem(existing.id, updates)
+      showSyncBanner('success', successMsg)
+      return { ...existing, ...updates }
+    }
+
     const itemWithMeta = {
       ...newItem,
       watched_at: dateNow,
@@ -576,43 +805,66 @@ export default function App() {
     const isCloud = isFirebaseConfigured() && user
     const dateNow = new Date().toISOString()
     
-    const preparedItems = newItemsList.map(item => ({
-      ...item,
-      watched_at: dateNow,
-      created_at: dateNow
-    }))
+    const itemsToInsert = []
+    const updatedExistingItems = []
 
-    if (isCloud) {
-      try {
-        const addedItems = await batchAddFirebaseItems(user.uid, preparedItems)
-        setItems(prev => [...addedItems, ...prev])
-        showSyncBanner('success', `Logged ${newItemsList.length} items to cloud database.`)
-        return addedItems
-      } catch (err) {
-        console.error('Failed to save to Firebase:', err)
-        showSyncBanner('error', 'Failed to sync to database. Storing locally instead.')
-        
-        // Fallback save locally
-        const preparedLocal = preparedItems.map(item => ({
+    for (const newItem of newItemsList) {
+      const targetKey = getMediaItemKey(newItem)
+      const existing = items.find(i => getMediaItemKey(i) === targetKey)
+
+      if (existing) {
+        const targetStatus = newItem.status || (existing.status !== 'list_only' ? existing.status : 'completed')
+        const updates = {
+          ...newItem,
+          status: targetStatus,
+          watched_at: newItem.watched_at || dateNow
+        }
+        delete updates.id
+        delete updates.user_id
+        await handleUpdateItem(existing.id, updates)
+        updatedExistingItems.push({ ...existing, ...updates })
+      } else {
+        itemsToInsert.push({
+          ...newItem,
+          watched_at: dateNow,
+          created_at: dateNow
+        })
+      }
+    }
+
+    let createdItems = []
+    if (itemsToInsert.length > 0) {
+      if (isCloud) {
+        try {
+          createdItems = await batchAddFirebaseItems(user.uid, itemsToInsert)
+          setItems(prev => [...createdItems, ...prev])
+          showSyncBanner('success', `Logged ${newItemsList.length} items to cloud database.`)
+        } catch (err) {
+          console.error('Failed to save to Firebase:', err)
+          showSyncBanner('error', 'Failed to sync to database. Storing locally instead.')
+          
+          // Fallback save locally
+          createdItems = itemsToInsert.map(item => ({
+            ...item,
+            id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          }))
+          setItems(prev => [...createdItems, ...prev])
+          localStorage.setItem('local_media_items', JSON.stringify([...createdItems, ...items]))
+        }
+      } else {
+        createdItems = itemsToInsert.map(item => ({
           ...item,
           id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         }))
-        const updated = [...preparedLocal, ...items]
-        setItems(updated)
-        localStorage.setItem('local_media_items', JSON.stringify(updated))
-        return preparedLocal
+        setItems(prev => [...createdItems, ...prev])
+        localStorage.setItem('local_media_items', JSON.stringify([...createdItems, ...items]))
+        showSyncBanner('success', `Saved ${newItemsList.length} items locally in browser.`)
       }
-    } else {
-      const preparedLocal = preparedItems.map(item => ({
-        ...item,
-        id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      }))
-      const updated = [...preparedLocal, ...items]
-      setItems(updated)
-      localStorage.setItem('local_media_items', JSON.stringify(updated))
-      showSyncBanner('success', `Saved ${newItemsList.length} items locally in browser.`)
-      return preparedLocal
+    } else if (updatedExistingItems.length > 0) {
+      showSyncBanner('success', `Updated ${updatedExistingItems.length} items.`)
     }
+
+    return [...updatedExistingItems, ...createdItems]
   }
 
   const saveItemLocally = (item, customMsg) => {
@@ -628,21 +880,27 @@ export default function App() {
   // API Callbacks: Update
   const handleUpdateItem = async (itemId, updates) => {
     const isCloud = isFirebaseConfigured() && user
+    const dateNow = new Date().toISOString()
+    const finalUpdates = {
+      ...updates,
+      updated_at: updates.updated_at || dateNow,
+      ...((updates.season_progress !== undefined || updates.status === 'watching') ? { watched_at: updates.watched_at || dateNow } : {})
+    }
     
     // Find the item to display title in messages
     const targetItem = items.find(i => i.id === itemId)
     const itemTitle = targetItem ? targetItem.title : 'Media item'
     const typeLabel = targetItem ? (targetItem.type === 'movie' ? 'movie' : targetItem.type === 'tv' ? 'TV show' : 'game') : 'item'
-    const successMsg = updates.status
-      ? `"${itemTitle}" ${typeLabel} added to ${updates.status}.`
+    const successMsg = finalUpdates.status
+      ? `"${itemTitle}" ${typeLabel} added to ${finalUpdates.status}.`
       : `Updated reviews for "${itemTitle}".`
 
     if (isCloud && typeof itemId === 'string' && !itemId.startsWith('local_')) {
       try {
-        await updateFirebaseItem(itemId, updates)
+        await updateFirebaseItem(itemId, finalUpdates)
 
         setItems(prev => prev.map(item => 
-          item.id === itemId ? { ...item, ...updates } : item
+          item.id === itemId ? { ...item, ...finalUpdates } : item
         ))
         showSyncBanner('success', successMsg)
       } catch (err) {
@@ -652,7 +910,7 @@ export default function App() {
     } else {
       // Local updates
       const updated = items.map(item => 
-        item.id === itemId ? { ...item, ...updates } : item
+        item.id === itemId ? { ...item, ...finalUpdates } : item
       )
       setItems(updated)
       localStorage.setItem('local_media_items', JSON.stringify(updated))
@@ -791,10 +1049,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={
                 <MediaGrid
-                  items={Array.from(new Map(items.map(i => {
-                    const key = i.type === 'tv' && i.season_number ? `${i.tmdb_id}_s${i.season_number}` : (i.tmdb_id || i.id)
-                    return [key, i]
-                  })).values())}
+                  items={getDeduplicatedItems(items)}
                   typeFilter={currentTab}
                   onUpdateItem={handleUpdateItem}
                   onRemoveItem={handleRemoveItem}
@@ -832,6 +1087,13 @@ export default function App() {
                 />
               } />
 
+              <Route path="/anime-player/:id/:epNum" element={
+                <AnimePlayer 
+                  items={items}
+                  onUpdateItem={handleUpdateItem}
+                />
+              } />
+
               <Route path="/explore/:type/:tmdb_id" element={
                 <ExploreDetailsWrapper 
                   items={items}
@@ -848,6 +1110,7 @@ export default function App() {
                   watchedItems={items}
                   onAddItem={handleAddItem}
                   onAddItems={handleAddItems}
+                  onUpdateItem={handleUpdateItem}
                   onRemoveItem={handleRemoveItem}
                   user={user}
                   query={globalSearchQuery}

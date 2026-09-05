@@ -25,6 +25,11 @@ const MEDIA_FIELDS = `
   format
   status
   popularity
+  nextAiringEpisode {
+    episode
+    airingAt
+    timeUntilAiring
+  }
 `
 
 async function fetchFromAnilist(query, variables = {}) {
@@ -56,6 +61,7 @@ export const mapAnilistItemToAppMedia = (media, customType) => {
   if (!media) return null
   const isMovie = media.format === 'MOVIE'
   const type = customType || (isMovie ? 'movie' : 'tv')
+  const airedCount = media.episodes || (media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : null)
 
   return {
     id: `anilist_${media.id}`,
@@ -69,7 +75,7 @@ export const mapAnilistItemToAppMedia = (media, customType) => {
     vote_average: media.averageScore ? (media.averageScore / 10).toFixed(1) : '0.0',
     overview: media.description ? media.description.replace(/<[^>]*>/g, '') : 'No description available.',
     genres: media.genres || [],
-    episodes: media.episodes || 1,
+    episodes: airedCount || media.episodes || 1,
     status: 'planned',
     original_language: 'ja',
     country: 'JP'
@@ -97,7 +103,7 @@ export const fetchAnilistBrowse = async ({ sort, status, search, page = 1, perPa
 
   const variables = { sort, status, search, page, perPage }
   const data = await fetchFromAnilist(query, variables)
-  
+
   return {
     items: (data?.Page?.media || []).map(m => mapAnilistItemToAppMedia(m)),
     pageInfo: data?.Page?.pageInfo || { total: 0, currentPage: 1, hasNextPage: false }
@@ -146,6 +152,8 @@ export const fetchAnilistAnimeDetails = async (id) => {
     query ($id: Int) {
       Media (id: $id, type: ANIME) {
         id
+        idMal
+        siteUrl
         title {
           romaji
           english
@@ -169,6 +177,11 @@ export const fetchAnilistAnimeDetails = async (id) => {
         status
         duration
         popularity
+        nextAiringEpisode {
+          episode
+          airingAt
+          timeUntilAiring
+        }
         studios(isMain: true) {
           nodes {
             id
@@ -240,6 +253,12 @@ export const fetchAnilistAnimeDetails = async (id) => {
             }
           }
         }
+        streamingEpisodes {
+          title
+          url
+          site
+          thumbnail
+        }
       }
     }
   `
@@ -277,10 +296,13 @@ export const fetchAnilistAnimeDetails = async (id) => {
     ? { results: [{ id: media.trailer.id, key: media.trailer.id, name: 'Official Trailer', site: 'YouTube', type: 'Trailer' }] }
     : { results: [] }
 
+  const airedCount = media.episodes || (media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : null)
+  const resolvedEpisodeCount = airedCount || (media.streamingEpisodes?.length > 0 ? media.streamingEpisodes.length : 12)
+
   const seasons = [
     {
       season_number: 1,
-      episode_count: media.episodes || 12,
+      episode_count: resolvedEpisodeCount,
       name: 'Season 1',
       poster_path: media.coverImage?.large,
       air_date: media.seasonYear ? `${media.seasonYear}-01-01` : null
@@ -307,13 +329,20 @@ export const fetchAnilistAnimeDetails = async (id) => {
     overview: media.description ? media.description.replace(/<[^>]*>/g, '') : 'No description available.',
     vote_average: media.averageScore ? (media.averageScore / 10) : 0,
     genres: genres,
+    status: media.status,
+    episodes: resolvedEpisodeCount,
+    rawEpisodes: media.episodes,
+    nextAiringEpisode: media.nextAiringEpisode,
     credits: {
       cast: cast,
       crew: crew
     },
     videos: videos,
     seasons: seasons,
-    homepage: `https://anilist.co/anime/${media.id}`,
+    homepage: media.siteUrl || `https://anilist.co/anime/${media.id}`,
+    siteUrl: media.siteUrl || `https://anilist.co/anime/${media.id}`,
+    anilistId: media.id,
+    idMal: media.idMal || null,
     external_ids: {
       imdb_id: null
     },
@@ -323,6 +352,7 @@ export const fetchAnilistAnimeDetails = async (id) => {
     first_air_date: media.seasonYear ? `${media.seasonYear}-01-01` : null,
     release_date: media.seasonYear ? `${media.seasonYear}-01-01` : null,
     recommendations: mappedRecommendations,
-    similar: mappedSimilar
+    similar: mappedSimilar,
+    streamingEpisodes: media.streamingEpisodes || []
   }
 }

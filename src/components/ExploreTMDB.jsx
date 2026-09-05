@@ -1780,6 +1780,7 @@ export default function ExploreTMDB({
   onAddItem, 
   onAddItems, 
   onRemoveItem, 
+  onUpdateItem,
   user,
   query,
   setQuery,
@@ -1972,6 +1973,20 @@ export default function ExploreTMDB({
     const releaseDate = isMovie ? addingItem.release_date : addingItem.first_air_date
     const releaseYear = releaseDate ? releaseDate.split('-')[0] : ''
 
+    const existing = watchedItems.find(wi => wi.type === mediaType && wi.tmdb_id === addingItem.id.toString())
+
+    if (existing && onUpdateItem) {
+      onUpdateItem(existing.id, {
+        status: userStatus,
+        review: userReview.trim(),
+        ...(mediaType === 'tv' && {
+          season_progress: userStatus === 'watching' ? { 1: 1 } : { 1: 0 }
+        })
+      })
+      setAddingItem(null)
+      return
+    }
+
     const newItem = {
       title: isMovie ? (addingItem.title || addingItem.name) : (addingItem.name || addingItem.title),
       type: mediaType,
@@ -2026,13 +2041,14 @@ export default function ExploreTMDB({
         wi.type === mediaType && wi.tmdb_id === item.id.toString()
       )
 
-      if (!alreadyAdded) {
+      if (!alreadyAdded || alreadyAdded.status === 'list_only') {
         const isMovie = mediaType === 'movie'
         const releaseDate = isMovie ? item.release_date : item.first_air_date
         const releaseYear = releaseDate ? releaseDate.split('-')[0] : ''
         const targetStatus = status || 'planned'
 
         itemsToAdd.push({
+          ...(alreadyAdded ? { id: alreadyAdded.id } : {}),
           title: isMovie ? (item.title || item.name) : (item.name || item.title),
           type: mediaType,
           tmdb_id: item.id.toString(),

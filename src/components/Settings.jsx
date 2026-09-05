@@ -10,7 +10,7 @@ export default function Settings({
   isAdmin,
   onAuthSuccess,
   onLogout,
-  
+
   // Sources props
   sources,
   onAddSource,
@@ -20,7 +20,7 @@ export default function Settings({
   onAddDownloadSource,
   onRemoveDownloadSource,
   onUpdateDownloadSource,
-  
+
   // Import/Export props
   items,
   onAddImportedItems
@@ -55,11 +55,10 @@ export default function Settings({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap md:w-full ${
-                  isActive
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap md:w-full ${isActive
                     ? 'bg-violet-600/10 text-violet-300 border border-violet-500/20'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent'
-                }`}
+                  }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-violet-400' : 'text-slate-500'}`} />
                 <span>{tab.label}</span>
@@ -75,7 +74,7 @@ export default function Settings({
               {user ? (
                 <div className="max-w-md mx-auto p-8 rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl shadow-2xl relative overflow-hidden">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl -z-10" />
-                  
+
                   <div className="text-center mb-8">
                     <User className="w-12 h-12 text-violet-400 mx-auto mb-4" />
                     <h2 className="text-2xl font-extrabold text-white tracking-tight mb-2">
@@ -107,8 +106,8 @@ export default function Settings({
                   </div>
                 </div>
               ) : (
-                <Auth 
-                  onAuthSuccess={onAuthSuccess} 
+                <Auth
+                  onAuthSuccess={onAuthSuccess}
                 />
               )}
             </div>

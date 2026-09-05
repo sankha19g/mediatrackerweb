@@ -271,6 +271,21 @@ export const loadFirebaseLists = async (userId, type) => {
   return lists.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 }
 
+export const loadAllFirebaseLists = async (userId) => {
+  const dbInstance = getFirebaseDb()
+  if (!dbInstance) throw new Error("Firebase database not initialized")
+  const q = query(
+    collection(dbInstance, 'custom_lists'), 
+    where('user_id', '==', userId)
+  )
+  const querySnapshot = await getDocs(q)
+  const lists = []
+  querySnapshot.forEach((doc) => {
+    lists.push({ id: doc.id, ...doc.data() })
+  })
+  return lists.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+}
+
 export const addFirebaseList = async (userId, name, description, type, thumbnailUrl = '', bannerUrl = '', extraFields = {}) => {
   const dbInstance = getFirebaseDb()
   if (!dbInstance) throw new Error("Firebase database not initialized")
